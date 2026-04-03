@@ -11,8 +11,9 @@ from ai import gemini
 from utils.weather import get_weather_summary
 from pdf.generator import generate_pdf, get_pdf_url
 from utils.delivery import send_whatsapp_pdf, send_sms
-from ai.gemini import generate_sms_summary, generate_farm_plan
+from ai.gemini import generate_sms_summary, generate_farm_plan, extract_profile_from_history
 import config
+import traceback
 
 wa_bp = Blueprint("whatsapp", __name__, url_prefix="")
 
@@ -42,7 +43,7 @@ MENU_TH = """🌾 *AgriSpark 2.0* — ที่ปรึกษาการเก
 
 @wa_bp.route("/whatsapp", methods=["POST"])
 def whatsapp_webhook():
-    import traceback
+    ai_reply = ""
     try:
         from_number  = request.form.get("From", "")     # e.g. whatsapp:+66812345678
         body         = request.form.get("Body", "").strip()
@@ -134,15 +135,12 @@ def whatsapp_webhook():
             session.append_wa_history(from_number, "user", body)
             session.append_wa_history(from_number, "model", ai_reply)
 
-            # 🎯 AGENTIC: Check if AI wants to generate a PDF plan
-            if ai_reply and "[GENERATE_PLAN]" in ai_reply:
-                ai_reply = ai_reply.replace("[GENERATE_PLAN]", "").strip()
-                
-                # 1. Ask Gemini to extract profile from history
-                from ai.gemini import extract_profile_from_history
-                
-                # Extract basic profile from history
-                profile = extract_profile_from_history(history + [{"role": "user", "text": body}])
+                # 🎯 AGENTIC: Check if AI wants to generate a PDF plan
+                if ai_reply and "[GENERATE_PLAN]" in ai_reply:
+                    ai_reply = ai_reply.replace("[GENERATE_PLAN]", "").strip()
+                    
+                    # Extract basic profile from history
+                    profile = extract_profile_from_history(history + [{"role": "user", "text": body}])
                 weather_text = get_weather_summary(profile.get("location", "Unknown"))
                 
                 # 2. Build full plan text
@@ -163,7 +161,6 @@ def whatsapp_webhook():
                     ai_reply += f"\n\n⚠️ (I had an issue generating your PDF: {str(pdf_err)[:40]}...)"
 
         except Exception as e:
-            import traceback
             print(f"Chat error: {traceback.format_exc()}")
             ai_reply = (f"I had a small thinking hiccup. Please try again! ({str(e)[:40]}...)" 
                         if lang == "EN" else 
