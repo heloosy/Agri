@@ -124,26 +124,29 @@ def chat_reply(lang: str, message: str, history: list) -> str:
 
 def _groq_chat(lang: str, message: str, history: list, system: str = None) -> str:
     """Fallback engine using Llama-3-70B on Groq."""
-    if not groq_client: return "AI currently unavailable."
+    if not groq_client: return "AI service currently busy. Please try again soon."
     
     messages = []
     if system:
         messages.append({"role": "system", "content": system})
     
+    # 🚨 CRITICAL: Groq uses 'assistant', Gemini uses 'model'
     for turn in history:
-        messages.append({"role": "user" if turn["role"] == "user" else "assistant", "content": turn["text"]})
+        role = "user" if turn.get("role") == "user" else "assistant"
+        content = turn.get("text", "")
+        if content:
+            messages.append({"role": role, "content": content})
     
     messages.append({"role": "user", "content": message})
     
     try:
-        # Use the latest high-quality model
         completion = groq_client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=messages,
             temperature=0.7,
             max_tokens=1024
         )
-        return completion.choices[0].message.content.strip()
+        return str(completion.choices[0].message.content or "AI is thinking...").strip()
     except Exception as e:
         return _handle_err(lang, e)
 
@@ -231,7 +234,8 @@ def detect_language(text: str) -> str:
         return "EN"
 
 def _handle_err(lang: str, e: Exception) -> str:
+    """Consistently handle errors and return a string."""
     msg = str(e)[:100]
     if lang == "TH":
-        return f"ขอโทษ เกิดปัญหาในการประมวลผล AI: {msg}"
-    return f"Sorry, I had an AI processing issue: {msg}"
+        return f"ขอโทษ มีปัญหาการเชื่อมต่อเล็กน้อย: {msg}"
+    return f"Sorry, I had a processing hiccup. Please try that again! ({msg})"
