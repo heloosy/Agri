@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AgriSpark 2.0 | Farm Control Center</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #2d6a4f;
+            --secondary: #40916c;
+            --accent: #f4a261;
+            --dark: #1b4332;
+            --light: #d8f3dc;
+            --white: #ffffff;
+            --glass: rgba(255, 255, 255, 0.1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, var(--dark) 0%, #081c15 100%);
+            color: var(--white);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Abstract shapes */
+        .shape {
+            position: absolute;
+            z-index: 0;
+            border-radius: 50%;
+            filter: blur(100px);
+            opacity: 0.4;
+        }
+        .shape-1 { background: var(--secondary); width: 400px; height: 400px; top: -10%; left: -10%; }
+        .shape-2 { background: var(--primary); width: 500px; height: 500px; bottom: -10%; right: -10%; }
+
+        .container {
+            width: 90%;
+            max-width: 480px;
+            background: var(--glass);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 24px;
+            padding: 48px;
+            box-shadow: 0 40px 100px rgba(0, 0, 0, 0.5);
+            position: relative;
+            z-index: 10;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+
+        .logo {
+            font-size: 42px;
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        h1 {
+            font-size: 28px;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            margin-bottom: 8px;
+        }
+
+        p.subtitle {
+            color: var(--light);
+            font-size: 14px;
+            opacity: 0.8;
+            font-weight: 300;
+        }
+
+        .form-group {
+            margin-bottom: 24px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--secondary);
+            animation: fadeIn 0.5s ease backwards;
+        }
+
+        input {
+            width: 100%;
+            padding: 16px 20px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            color: var(--white);
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: var(--secondary);
+            background: rgba(255, 255, 255, 0.1);
+            box-shadow: 0 0 20px rgba(64, 145, 108, 0.2);
+        }
+
+        input::placeholder {
+            color: rgba(255, 255, 255, 0.3);
+        }
+
+        button {
+            width: 100%;
+            padding: 18px;
+            background: var(--secondary);
+            color: var(--white);
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            background: var(--primary);
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .status {
+            margin-top: 24px;
+            text-align: center;
+            font-size: 14px;
+            min-height: 20px;
+        }
+
+        .status.success { color: #52b788; }
+        .status.error { color: #f4a261; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Loading spinner */
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 10px;
+            display: none;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        footer {
+            position: absolute;
+            bottom: 20px;
+            font-size: 12px;
+            opacity: 0.5;
+        }
+
+        .info-pill {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            display: inline-block;
+            margin-bottom: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+    </style>
+</head>
+<body>
+    <div class="shape shape-1"></div>
+    <div class="shape shape-2"></div>
+
+    <div class="container">
+        <header>
+            <span class="logo">🌾</span>
+            <div class="info-pill">AgriSpark 2.0 Dashboard</div>
+            <h1>Farm Control</h1>
+            <p class="subtitle">Trigger instant outbound IVR advisory calls</p>
+        </header>
+
+        <div class="form-group">
+            <label for="phone">Phone Number</label>
+            <input type="text" id="phone" placeholder="+66 812 345 678" value="+">
+        </div>
+
+        <div class="form-group">
+            <label for="code">Security Code</label>
+            <input type="password" id="code" placeholder="Enter secret code">
+        </div>
+
+        <button id="triggerBtn">
+            <span class="spinner" id="spinner"></span>
+            Start Outbound Call
+        </button>
+
+        <div id="status" class="status"></div>
+    </div>
+
+    <footer>
+        &copy; 2026 AgriSpark 2.0 | Powered by Gemini & Twilio
+    </footer>
+
+    <script>
+        const triggerBtn = document.getElementById('triggerBtn');
+        const phoneInput = document.getElementById('phone');
+        const codeInput = document.getElementById('code');
+        const statusDiv = document.getElementById('status');
+        const spinner = document.getElementById('spinner');
+
+        triggerBtn.addEventListener('click', async () => {
+            const phone = phoneInput.value.trim();
+            const code = codeInput.value.trim();
+
+            if (!phone) {
+                showStatus('Please enter a phone number', 'error');
+                return;
+            }
+
+            setLoading(true);
+            showStatus('Initiating call...', '');
+
+            try {
+                const response = await fetch('/trigger-call', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ phone, code })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    showStatus('✅ Call triggered successfully! SID: ' + result.call_sid.substring(0, 8), 'success');
+                } else {
+                    showStatus('❌ Error: ' + result.error, 'error');
+                }
+            } catch (err) {
+                showStatus('❌ Failed to connect to server', 'error');
+            } finally {
+                setLoading(false);
+            }
+        });
+
+        function showStatus(text, type) {
+            statusDiv.textContent = text;
+            statusDiv.className = 'status ' + type;
+        }
+
+        function setLoading(isActive) {
+            triggerBtn.disabled = isActive;
+            spinner.style.display = isActive ? 'inline-block' : 'none';
+        }
+    </script>
+</body>
+</html>
