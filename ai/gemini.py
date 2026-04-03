@@ -13,8 +13,8 @@ from utils import prompts
 
 genai.configure(api_key=GEMINI_API_KEY)
 
-_TEXT_MODEL  = "gemini-1.5-flash"
-_VISION_MODEL = "gemini-1.5-flash"   # same model handles vision
+_TEXT_MODEL  = "gemini-1.5-flash-latest"
+_VISION_MODEL = "gemini-1.5-flash-latest"   # handles both text and vision
 
 
 # ─── Quick Query (IVR single-turn) ───────────────────────────────────────────
