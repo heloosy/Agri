@@ -216,11 +216,6 @@
             <input type="text" id="phone" placeholder="+66 812 345 678" value="+">
         </div>
 
-        <div class="form-group">
-            <label for="code">Security Code</label>
-            <input type="password" id="code" placeholder="Enter secret code">
-        </div>
-
         <button id="triggerBtn">
             <span class="spinner" id="spinner"></span>
             Start Outbound Call
@@ -236,13 +231,11 @@
     <script>
         const triggerBtn = document.getElementById('triggerBtn');
         const phoneInput = document.getElementById('phone');
-        const codeInput = document.getElementById('code');
         const statusDiv = document.getElementById('status');
         const spinner = document.getElementById('spinner');
 
         triggerBtn.addEventListener('click', async () => {
             const phone = phoneInput.value.trim();
-            const code = codeInput.value.trim();
 
             if (!phone) {
                 showStatus('Please enter a phone number', 'error');
@@ -256,7 +249,7 @@
                 const response = await fetch('/trigger-call', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ phone, code })
+                    body: JSON.stringify({ phone })
                 });
 
                 const result = await response.json();
