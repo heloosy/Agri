@@ -44,9 +44,9 @@ def welcome():
     gather  = Gather(num_digits=1, action="/ivr/set-language", method="POST",
                      timeout=10)
     gather.say(
-        "Welcome to AgriSpark. Your AI farming advisor. "
+        "Welcome to AgriSpark 2.0, your visionary farming partner. I am here to help you grow more and earn more. "
         "Press 1 for English. Press 2 for Thai. "
-        "ยินดีต้อนรับสู่ AgriSpark กด 1 สำหรับภาษาอังกฤษ กด 2 สำหรับภาษาไทย",
+        "ยินดีต้อนรับสู่ AgriSpark 2.0 หุ้นส่วนต้นคิดเพื่อการเกษตรของคุณ กด 1 สำหรับภาษาอังกฤษ กด 2 สำหรับภาษาไทย",
         voice="Polly.Joanna", language="en-US"
     )
     resp.append(gather)
@@ -67,12 +67,14 @@ def set_language():
 
     if lang == "EN":
         gather.say(
-            "Great! Press 1 for a quick question. Press 2 for a full personalised farm plan.",
+            "Excellent. I am ready to assist. Press 1 for a quick agricultural consultation. "
+            "Press 2 to design a full, professional farm plan specifically for your land.",
             voice="Polly.Joanna", language="en-US"
         )
     else:
         gather.say(
-            "ดีมาก! กด 1 สำหรับคำถามด่วน กด 2 สำหรับแผนการเกษตรแบบละเอียด",
+            "ยอดเยี่ยมมาก ฉันพร้อมช่วยเหลือคุณแล้ว กด 1 สำหรับการปรึกษาด้านการเกษตรอย่างรวดเร็ว "
+            "กด 2 เพื่อรับการออกแบบแผนการเกษตรแบบมืออาชีพสำหรับพื้นที่ของคุณโดยเฉพาะ",
             voice="Polly.Saara", language="th-TH"
         )
 
@@ -330,6 +332,13 @@ def complete():
 
         # 5. Send WhatsApp PDF
         if farmer_no:
+            print(f"📡 AGENTIC DELIVERY: Sending PDF to {farmer_no}")
+            print(f"📄 PDF URL: {pdf_url}")
+            
+            # NOTE: If BASE_URL is localhost, Twilio will fail to download this PDF.
+            if "localhost" in pdf_url or "127.0.0.1" in pdf_url:
+                print("⚠️ WARNING: Localhost URL detected. Twilio cannot send this media via WhatsApp.")
+
             try:
                 wa_body = (
                     f"🌾 Hello {profile['name']}! Your AgriSpark 2.0 farm plan is ready. "
@@ -339,14 +348,16 @@ def complete():
                     f"🌾 สวัสดี {profile['name']}! แผนการเกษตร AgriSpark 2.0 ของคุณพร้อมแล้ว"
                 )
                 send_whatsapp_pdf(farmer_no, wa_body, pdf_url)
-            except Exception:
-                pass  # Don't fail the call if WhatsApp fails
+                print("✅ WhatsApp PDF Sent Successfully!")
+            except Exception as wa_err:
+                print(f"❌ WhatsApp PDF Error: {wa_err}")
 
             # 6. Send SMS summary
             try:
                 send_sms(farmer_no, sms_text)
-            except Exception:
-                pass
+                print("✅ SMS Summary Sent Successfully!")
+            except Exception as sms_err:
+                print(f"❌ SMS Summary Error: {sms_err}")
 
         # 7. Read a spoken summary over the phone
         spoken_summary = _extract_spoken_summary(plan_text, lang)
