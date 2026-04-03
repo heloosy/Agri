@@ -129,13 +129,23 @@ def whatsapp_webhook():
             session.append_wa_history(from_number, "user", body)
             session.append_wa_history(from_number, "model", ai_reply)
 
-            # Trigger PDF Plan?
-            if ai_reply and "[GENERATE_PLAN]" in ai_reply:
-                # Extract profile first
-                profile = extract_profile_from_history(history + [{"role": "user", "text": body}])
-                ai_reply = ai_reply.replace("[GENERATE_PLAN]", "").strip()
+                # 🏛️ MASTER MEMORY RESTORE: Load data from phone-linked archive
+                master_profile = session.load_farmer_profile(from_number)
                 
-                # 🕵️‍♂️ SMART ADAPTATION: Use defaults if info is missing, don't block!
+                # Extract any brand new info from current chat history
+                extracted = extract_profile_from_history(history + [{"role": "user", "text": body}])
+                
+                # MERGE: Master Data + Extracted New Data
+                profile = {**master_profile, **extracted}
+                
+                # Filter out "Unknown" if we have better data in either set
+                for k in profile:
+                    if str(profile[k]).lower() == "unknown":
+                        profile[k] = master_profile.get(k, "Unknown")
+                
+                print(f"📡 AGENTIC RESTORE: Synced Master Archive for {from_number}")
+                
+                # SMART ADAPTATION: Use defaults if STILL missing
                 if not profile.get("name") or profile.get("name").lower() == "unknown":
                     profile["name"] = "Farmer"
                 
