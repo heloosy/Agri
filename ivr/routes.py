@@ -334,6 +334,11 @@ def complete():
         "terrain":      sess.get("terrain",       "Unknown"),
     }
 
+    # 🏛️ MASTER MEMORY SYNC: Save profile to persistent phone-linked archive
+    if farmer_no:
+        session.save_farmer_profile(farmer_no, profile)
+        print(f"📡 AGENTIC SYNC: Linked IVR data to Master Archive for {farmer_no}")
+
     resp = VoiceResponse()
 
     try:
