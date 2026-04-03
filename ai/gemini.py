@@ -11,7 +11,10 @@ from io import BytesIO
 from config import GEMINI_API_KEY, GROQ_API_KEY
 from utils import prompts
 
-genai.configure(api_key=GEMINI_API_KEY)
+if not GEMINI_API_KEY:
+    print("🚨 WARNING: GEMINI_API_KEY is missing in environmental variables!")
+else:
+    genai.configure(api_key=GEMINI_API_KEY)
 
 # Initialize Groq if key is present
 try:
