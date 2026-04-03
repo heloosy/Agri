@@ -23,7 +23,7 @@ try:
 except ImportError:
     groq_client = None
 
-# Try these models in order of preference (confirmed in diagnosis)
+# Try these models in order of preference
 _MODELS = [
     "models/gemini-flash-latest",
     "models/gemini-2.0-flash",
@@ -31,21 +31,19 @@ _MODELS = [
     "models/gemini-pro-latest", 
 ]
 
-# Cache for the first model that actually works to prevent timeouts
+# Cache for the first model that actually works
 _WORKING_MODEL_NAME = None
 
 def _get_working_model(system_instruction=None):
     """Attempt to initialize a model, caching the result for speed."""
     global _WORKING_MODEL_NAME
     
-    # If we already found a working model, use it directly!
     if _WORKING_MODEL_NAME:
         return genai.GenerativeModel(_WORKING_MODEL_NAME, system_instruction=system_instruction)
 
     for model_name in _MODELS:
         try:
             model = genai.GenerativeModel(model_name, system_instruction=system_instruction)
-            # Test it briefly (only on the very first call)
             model.generate_content("test", generation_config={"max_output_tokens": 1})
             _WORKING_MODEL_NAME = model_name
             return model
@@ -53,7 +51,7 @@ def _get_working_model(system_instruction=None):
             if "404" in str(e) or "not found" in str(e).lower():
                 continue
             raise e
-    raise Exception("No working Gemini models found in your region/project.")
+    raise Exception("No working Gemini models found in your region.")
 
 
 # ─── Quick Query (IVR single-turn) ───────────────────────────────────────────
@@ -66,7 +64,8 @@ def quick_answer(lang: str, question: str) -> str:
         resp  = model.generate_content(question)
         return resp.text.strip()
     except Exception as e:
-        if ("429" in str(e) or "quota" in str(e).lower()) and groq_client:
+        if groq_client:
+            print(f"📡 AI FALLBACK (IVR): Gemini hit an issue ({str(e)[:40]}). Switching to GROQ...")
             return _groq_chat(lang, question, [], prompts.quick_system(lang))
         return _handle_err(lang, e)
 
@@ -85,7 +84,8 @@ def generate_farm_plan(lang: str, profile: dict, weather_summary: str = "Not ava
         resp  = model.generate_content(prompt)
         return resp.text.strip()
     except Exception as e:
-        if ("429" in str(e) or "quota" in str(e).lower()) and groq_client:
+        if groq_client:
+            print(f"📡 AI FALLBACK (PLAN): Gemini hit an issue. Switching to GROQ...")
             return _groq_chat(lang, prompt, [])
         return _handle_err(lang, e)
 
@@ -105,14 +105,14 @@ def generate_sms_summary(lang: str, profile: dict, key_points: str) -> str:
         model = _get_working_model()
         resp  = model.generate_content(prompt)
         return resp.text.strip()[:320]
-    except Exception as e:
-        return _handle_err(lang, e)
+    except Exception:
+        return f"AgriSpark: Full plan for {profile.get('name', 'you')} is ready. See WhatsApp."
 
 
 # ─── WhatsApp Multi-turn Chat ─────────────────────────────────────────────────
 
 def chat_reply(lang: str, message: str, history: list) -> str:
-    """Multi-turn WhatsApp chat with Groq fallback."""
+    """Multi-turn WhatsApp chat with aggressive Groq fallback."""
     try:
         system = prompts.chat_system(lang)
         model = _get_working_model(system_instruction=system)
@@ -120,20 +120,20 @@ def chat_reply(lang: str, message: str, history: list) -> str:
         resp  = chat.send_message(message)
         return resp.text.strip()
     except Exception as e:
-        # 🚨 THE SAFETY SWITCH: Catch 429 and use Groq
-        if ("429" in str(e) or "quota" in str(e).lower()) and groq_client:
+        if groq_client:
+            print(f"📡 AI FALLBACK (CHAT): Gemini is busy ({str(e)[:40]}). Switching to GROQ...")
             return _groq_chat(lang, message, history, prompts.chat_system(lang))
         return _handle_err(lang, e)
 
+
 def _groq_chat(lang: str, message: str, history: list, system: str = None) -> str:
-    """Fallback engine using Llama-3-70B on Groq."""
-    if not groq_client: return "AI service currently busy. Please try again soon."
+    """Fallback engine using Llama-3-7b on Groq."""
+    if not groq_client: return "AgriSpark Brain is currently busy. Please message back in a minute!"
     
     messages = []
     if system:
         messages.append({"role": "system", "content": system})
     
-    # 🚨 CRITICAL: Groq uses 'assistant', Gemini uses 'model'
     for turn in history:
         role = "user" if turn.get("role") == "user" else "assistant"
         content = turn.get("text", "")
@@ -184,10 +184,7 @@ def analyze_image(lang: str, image_url: str, twilio_sid: str, twilio_token: str)
 
 
 def extract_profile_from_history(history: list) -> dict:
-    """Uses Gemini to extract structured farmer info from chat history JSON."""
-    model = _get_working_model()
-    
-    # Format the history for the extraction prompt
+    """Uses Gemini to extract structured farmer info from chat history JSON with Groq fallback."""
     history_str = "\n".join([f"{m['role'].upper()}: {m['text']}" for m in history])
     
     prompt = f"""
@@ -207,16 +204,41 @@ def extract_profile_from_history(history: list) -> dict:
       "terrain": "Terrain"
     }}
     """
-    
     try:
+        model = _get_working_model()
         raw = model.generate_content(prompt).text.strip()
-        import json
-        # Basic JSON cleanup in case of markdown
+        return _parse_profile_json(raw)
+    except Exception as e:
+        # 🛡️ THE SAFETY SWITCH: Use Groq if Gemini hits a quota limit
+        if groq_client:
+            print(f"📡 AI FALLBACK (EXTRACT): Gemini hit an issue ({str(e)[:40]}). Switching to GROQ...")
+            try:
+                # Use a simple chat completion with same prompt
+                messages = [{"role": "system", "content": "You are a data extraction bot. Respond only in JSON."},
+                            {"role": "user", "content": prompt}]
+                completion = groq_client.chat.completions.create(
+                    model="llama-3.3-70b-versatile",
+                    messages=messages,
+                    temperature=0.1 # Low temperature for strict JSON
+                )
+                raw = str(completion.choices[0].message.content or "{}").strip()
+                return _parse_profile_json(raw)
+            except Exception:
+                pass
+        
+        return {
+            "name": "Farmer", "location": "Unknown", "past_crop": "Unknown",
+            "current_crop": "Unknown", "soil_type": "Unknown", "terrain": "Unknown"
+        }
+
+def _parse_profile_json(raw: str) -> dict:
+    """Helper to clean and parse the profile JSON."""
+    import json
+    try:
         if "```json" in raw:
             raw = raw.split("```json")[1].split("```")[0].strip()
         elif "```" in raw:
             raw = raw.split("```")[1].split("```")[0].strip()
-        
         return json.loads(raw)
     except Exception:
         return {
@@ -244,11 +266,10 @@ def clean_ivr_answer(lang: str, field_key: str, transcript: str) -> str:
     """
     try:
         model = _get_working_model()
-        # Fast generation for speed during the call
         resp = model.generate_content(prompt, generation_config={"max_output_tokens": 10})
         return resp.text.strip()
     except Exception:
-        return transcript.strip() # Fallback to raw if logic fails
+        return transcript.strip()
 
 def detect_language(text: str) -> str:
     """Returns 'TH' or 'EN' based on text content."""
