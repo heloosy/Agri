@@ -8,10 +8,17 @@ import requests
 from PIL import Image
 from io import BytesIO
 
-from config import GEMINI_API_KEY
+from config import GEMINI_API_KEY, GROQ_API_KEY
 from utils import prompts
 
 genai.configure(api_key=GEMINI_API_KEY)
+
+# Initialize Groq if key is present
+try:
+    from groq import Groq
+    groq_client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
+except ImportError:
+    groq_client = None
 
 # Try these models in order of preference (confirmed in diagnosis)
 _MODELS = [
@@ -49,35 +56,34 @@ def _get_working_model(system_instruction=None):
 # ─── Quick Query (IVR single-turn) ───────────────────────────────────────────
 
 def quick_answer(lang: str, question: str) -> str:
-    """Single-turn conversational reply for IVR quick query."""
-    system = prompts.quick_system(lang)
+    """Single-turn conversational reply for IVR quick query with Groq fallback."""
     try:
+        system = prompts.quick_system(lang)
         model = _get_working_model(system_instruction=system)
         resp  = model.generate_content(question)
         return resp.text.strip()
     except Exception as e:
+        if ("429" in str(e) or "quota" in str(e).lower()) and groq_client:
+            return _groq_chat(lang, question, [], prompts.quick_system(lang))
         return _handle_err(lang, e)
 
 
 # ─── Detailed Farm Plan ───────────────────────────────────────────────────────
 
 def generate_farm_plan(lang: str, profile: dict, weather_summary: str = "Not available") -> str:
-    """Generate the full AI farm plan from farmer profile."""
+    """Generate the full AI farm plan with Groq fallback."""
     prompt = prompts.plan_prompt(
         lang,
-        name=profile.get("name", "Farmer"),
-        location=profile.get("location", "Unknown"),
-        past_crop=profile.get("past_crop", "Unknown"),
-        current_crop=profile.get("current_crop", "Unknown"),
-        soil_type=profile.get("soil_type", "Unknown"),
-        terrain=profile.get("terrain", "Unknown"),
-        weather_summary=weather_summary,
+        **profile,
+        weather_summary=weather_summary
     )
     try:
         model = _get_working_model()
         resp  = model.generate_content(prompt)
         return resp.text.strip()
     except Exception as e:
+        if ("429" in str(e) or "quota" in str(e).lower()) and groq_client:
+            return _groq_chat(lang, prompt, [])
         return _handle_err(lang, e)
 
 
@@ -103,13 +109,41 @@ def generate_sms_summary(lang: str, profile: dict, key_points: str) -> str:
 # ─── WhatsApp Multi-turn Chat ─────────────────────────────────────────────────
 
 def chat_reply(lang: str, message: str, history: list) -> str:
-    """Multi-turn WhatsApp chat with conversation history."""
-    system = prompts.chat_system(lang)
+    """Multi-turn WhatsApp chat with Groq fallback."""
     try:
+        system = prompts.chat_system(lang)
         model = _get_working_model(system_instruction=system)
         chat  = model.start_chat(history=_format_history(history))
         resp  = chat.send_message(message)
         return resp.text.strip()
+    except Exception as e:
+        # 🚨 THE SAFETY SWITCH: Catch 429 and use Groq
+        if ("429" in str(e) or "quota" in str(e).lower()) and groq_client:
+            return _groq_chat(lang, message, history, prompts.chat_system(lang))
+        return _handle_err(lang, e)
+
+def _groq_chat(lang: str, message: str, history: list, system: str = None) -> str:
+    """Fallback engine using Llama-3-70B on Groq."""
+    if not groq_client: return "AI currently unavailable."
+    
+    messages = []
+    if system:
+        messages.append({"role": "system", "content": system})
+    
+    for turn in history:
+        messages.append({"role": "user" if turn["role"] == "user" else "assistant", "content": turn["text"]})
+    
+    messages.append({"role": "user", "content": message})
+    
+    try:
+        # Use a high-quality model
+        completion = groq_client.chat.completions.create(
+            model="llama-3.1-70b-versatile",
+            messages=messages,
+            temperature=0.7,
+            max_tokens=1024
+        )
+        return completion.choices[0].message.content.strip()
     except Exception as e:
         return _handle_err(lang, e)
 
@@ -141,6 +175,48 @@ def analyze_image(lang: str, image_url: str, twilio_sid: str, twilio_token: str)
         return resp.text.strip()
     except Exception as e:
         return _handle_err(lang, e)
+
+
+def extract_profile_from_history(history: list) -> dict:
+    """Uses Gemini to extract structured farmer info from chat history JSON."""
+    model = _get_working_model()
+    
+    # Format the history for the extraction prompt
+    history_str = "\n".join([f"{m['role'].upper()}: {m['text']}" for m in history])
+    
+    prompt = f"""
+    Based on the agricultural conversation history below, extract the farmer's profile.
+    If a field is unknown, leave it as 'Unknown'.
+    
+    HISTORY:
+    {history_str}
+    
+    Respond ONLY with a JSON block in this format:
+    {{
+      "name": "Full Name",
+      "location": "Province or Region",
+      "past_crop": "Last Season's Crop",
+      "current_crop": "Planned/Current Crop",
+      "soil_type": "Soil Type",
+      "terrain": "Terrain"
+    }}
+    """
+    
+    try:
+        raw = model.generate_content(prompt).text.strip()
+        import json
+        # Basic JSON cleanup in case of markdown
+        if "```json" in raw:
+            raw = raw.split("```json")[1].split("```")[0].strip()
+        elif "```" in raw:
+            raw = raw.split("```")[1].split("```")[0].strip()
+        
+        return json.loads(raw)
+    except Exception:
+        return {
+            "name": "Farmer", "location": "Unknown", "past_crop": "Unknown",
+            "current_crop": "Unknown", "soil_type": "Unknown", "terrain": "Unknown"
+        }
 
 
 # ─── Utilities ────────────────────────────────────────────────────────────────
