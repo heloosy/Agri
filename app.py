@@ -43,10 +43,6 @@ def create_app():
     def trigger_call():
         data = request.json
         phone_number = data.get("phone")
-        auth_code = data.get("code")
-
-        if auth_code != config.SECRET_TRIGGER_CODE:
-            return jsonify({"success": False, "error": "Invalid Secret Code"}), 403
 
         if not phone_number:
             return jsonify({"success": False, "error": "Phone number is required"}), 400
