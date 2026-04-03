@@ -95,13 +95,27 @@ def whatsapp_webhook():
             return Response(str(resp), mimetype="application/xml")
 
         if body_lower in ("weather", "อากาศ"):
-            stored_loc = sess.get("location") or "Thailand"
-            summary = get_weather_summary(stored_loc)
-            msg.body(f"🌦 Weather for {stored_loc}:\n{summary}" if lang == "EN" else f"🌦 อากาศที่ {stored_loc}:\n{summary}")
+            stored_loc = sess.get("location") or sess.get("plan_data", {}).get("location")
+            if stored_loc:
+                summary = get_weather_summary(stored_loc)
+                header = f"*🌦 WEATHER: {stored_loc.upper()}*" if lang == "EN" else f"*🌦 พยากรณ์อากาศ: {stored_loc}*"
+                msg.body(f"{header}\n\n\n{summary}")
+            else:
+                session.update(from_number, awaiting="weather_location")
+                ask = "📊 *WEATHER DISCOVERY*\n\n\nWhich location do you want weather for?" if lang == "EN" else "📊 *ค้นหาพยากรณ์อากาศ*\n\n\nคุณต้องการพยากรณ์อากาศของที่ไหน?"
+                msg.body(ask)
             return Response(str(resp), mimetype="application/xml")
 
         if body_lower in ("price", "ราคา"):
             msg.body(_market_price_info(lang))
+            return Response(str(resp), mimetype="application/xml")
+
+        # ─── Awaiting weather location ────────────────────────────────
+        if sess.get("awaiting") == "weather_location":
+            session.update(from_number, location=body, awaiting=None)
+            summary = get_weather_summary(body)
+            header = f"*🌦 WEATHER: {body.upper()}*" if lang == "EN" else f"*🌦 พยากรณ์อากาศ: {body}*"
+            msg.body(f"{header}\n\n\n{summary}")
             return Response(str(resp), mimetype="application/xml")
 
         # ─── AGENTIC CHATBOT ──────────────────────────────────────────
