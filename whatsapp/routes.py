@@ -131,36 +131,35 @@ def whatsapp_webhook():
 
             # Trigger PDF Plan?
             if ai_reply and "[GENERATE_PLAN]" in ai_reply:
-                # Extract profile first to see if we have enough info
+                # Extract profile first
                 profile = extract_profile_from_history(history + [{"role": "user", "text": body}])
+                ai_reply = ai_reply.replace("[GENERATE_PLAN]", "").strip()
                 
-                # 🕵️‍♂️ QUALITY GATE: Only generate if we have a name and location
-                has_name = profile.get("name") and profile.get("name").lower() != "unknown"
-                has_loc  = profile.get("location") and profile.get("location").lower() != "unknown"
+                # 🕵️‍♂️ SMART ADAPTATION: Use defaults if info is missing, don't block!
+                if not profile.get("name") or profile.get("name").lower() == "unknown":
+                    profile["name"] = "Farmer"
                 
-                if has_name and has_loc:
-                    ai_reply = ai_reply.replace("[GENERATE_PLAN]", "").strip()
-                    weather_text = get_weather_summary(profile.get("location", "Unknown"))
+                loc = profile.get("location", "Unknown")
+                weather_text = get_weather_summary(loc) if loc.lower() != "unknown" else "Weather details will be more accurate once you share your location!"
+                
+                # Build plan
+                full_plan = generate_farm_plan(lang, profile, weather_text)
+                
+                try:
+                    pdf_path = generate_pdf(profile, full_plan, lang)
+                    pdf_url  = get_pdf_url(pdf_path)
+                    send_whatsapp_pdf(from_number, f"📄 Plan for {profile.get('name', 'you')} is ready!", pdf_url)
                     
-                    # Build plan
-                    full_plan = generate_farm_plan(lang, profile, weather_text)
+                    sms_short = generate_sms_summary(lang, profile, full_plan[:300])
+                    send_sms(from_number, sms_short)
                     
-                    try:
-                        pdf_path = generate_pdf(profile, full_plan, lang)
-                        pdf_url  = get_pdf_url(pdf_path)
-                        send_whatsapp_pdf(from_number, f"📄 Plan for {profile.get('name', 'Farmer')} is ready!", pdf_url)
-                        
-                        sms_short = generate_sms_summary(lang, profile, full_plan[:300])
-                        send_sms(from_number, sms_short)
-                        
-                        ai_reply += "\n\n✅ DONE! I've sent your PDF plan to WhatsApp and SMS."
-                    except Exception as pdf_err:
-                        ai_reply += f"\n\n⚠️ (PDF Issue: {str(pdf_err)[:40]}...)"
-                else:
-                    # Not enough info yet! Remove the tag so it doesn't leak
-                    ai_reply = ai_reply.replace("[GENERATE_PLAN]", "").strip()
-                    if "information" not in ai_reply.lower():
-                        ai_reply += "\n\n(I'd love to curate a plan! Please tell me your name and location first so I can make it perfect for your land. 🌾)"
+                    ai_reply += "\n\n✅ DONE! I've sent your PDF plan to WhatsApp and SMS."
+                    
+                    # Gently nudge for more info if location was missing
+                    if loc.lower() == "unknown":
+                        ai_reply += "\n\n(Tip: Tell me your *Location* next time for a hyper-local weather forecast! 🌦️)"
+                except Exception as pdf_err:
+                    ai_reply += f"\n\n⚠️ (PDF Issue: {str(pdf_err)[:40]}...)"
 
         except Exception as e:
             print(f"Chat error: {traceback.format_exc()}")
