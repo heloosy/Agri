@@ -93,7 +93,7 @@ def generate_farm_plan(lang: str, profile: dict, weather_summary: str = "Not ava
 # ─── SMS Summary ─────────────────────────────────────────────────────────────
 
 def generate_sms_summary(lang: str, profile: dict, key_points: str) -> str:
-    """Generate a 160-char SMS summary."""
+    """Generate a 160-char SMS summary with Groq fallback."""
     prompt = prompts.sms_summary_prompt(
         lang,
         name=profile.get("name", "Farmer"),
@@ -106,6 +106,19 @@ def generate_sms_summary(lang: str, profile: dict, key_points: str) -> str:
         resp  = model.generate_content(prompt)
         return resp.text.strip()[:320]
     except Exception:
+        # 🛡️ THE SAFETY SWITCH: Try Groq for a quick SMS summary
+        if groq_client:
+            try:
+                messages = [{"role": "system", "content": "You are a concise SMS writer. Max 150 chars."},
+                            {"role": "user", "content": prompt}]
+                completion = groq_client.chat.completions.create(
+                    model="llama-3.3-70b-versatile",
+                    messages=messages,
+                    max_tokens=60
+                )
+                return str(completion.choices[0].message.content or "").strip()[:160]
+            except Exception:
+                pass
         return f"AgriSpark: Full plan for {profile.get('name', 'you')} is ready. See WhatsApp."
 
 
@@ -250,7 +263,7 @@ def _parse_profile_json(raw: str) -> dict:
 # ─── Utilities ────────────────────────────────────────────────────────────────
 
 def clean_ivr_answer(lang: str, field_key: str, transcript: str) -> str:
-    """Takes a messy IVR transcript and returns a clean, single-value category."""
+    """Takes a messy IVR transcript and returns a clean, single-value category with Groq fallback."""
     if not transcript or len(transcript) < 2: return "Unknown"
     
     prompt = f"""
@@ -268,7 +281,20 @@ def clean_ivr_answer(lang: str, field_key: str, transcript: str) -> str:
         model = _get_working_model()
         resp = model.generate_content(prompt, generation_config={"max_output_tokens": 10})
         return resp.text.strip()
-    except Exception:
+    except Exception as e:
+        # 🛡️ THE SAFETY SWITCH: Try Groq for data cleaning
+        if groq_client:
+            try:
+                messages = [{"role": "system", "content": "You are a concise data cleaner. Respond only with one or two words."},
+                            {"role": "user", "content": prompt}]
+                completion = groq_client.chat.completions.create(
+                    model="llama-3.3-70b-versatile",
+                    messages=messages,
+                    max_tokens=10
+                )
+                return str(completion.choices[0].message.content or "").strip()
+            except Exception:
+                pass
         return transcript.strip()
 
 def detect_language(text: str) -> str:
@@ -284,5 +310,5 @@ def _handle_err(lang: str, e: Exception) -> str:
     """Consistently handle errors and return a string."""
     msg = str(e)[:100]
     if lang == "TH":
-        return f"ขอโทษ มีปัญหาการเชื่อมต่อเล็กน้อย: {msg}"
-    return f"Sorry, I had a processing hiccup. Please try that again! ({msg})"
+        return f"ขอโทษครับ ตอนนี้ระบบ AI ไม่ว่างชั่วคราว กรุณาลองใหม่อีกครั้งในภายหลัง"
+    return f"I'm sorry, my AI processing is currently at capacity. Please try your request again in a few moments!"
