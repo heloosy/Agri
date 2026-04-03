@@ -13,26 +13,35 @@ from utils import prompts
 
 genai.configure(api_key=GEMINI_API_KEY)
 
-# Try these models in order of preference
+# Try these models in order of preference (confirmed in diagnosis)
 _MODELS = [
     "models/gemini-flash-latest",
     "models/gemini-2.0-flash",
     "models/gemini-2.5-flash",
-    "models/gemini-pro-latest",  # Very stable fallback
+    "models/gemini-pro-latest", 
 ]
 
+# Cache for the first model that actually works to prevent timeouts
+_WORKING_MODEL_NAME = None
+
 def _get_working_model(system_instruction=None):
-    """Attempt to initialize a model, falling back if one is not found."""
+    """Attempt to initialize a model, caching the result for speed."""
+    global _WORKING_MODEL_NAME
+    
+    # If we already found a working model, use it directly!
+    if _WORKING_MODEL_NAME:
+        return genai.GenerativeModel(_WORKING_MODEL_NAME, system_instruction=system_instruction)
+
     for model_name in _MODELS:
         try:
             model = genai.GenerativeModel(model_name, system_instruction=system_instruction)
-            # Test it briefly
-            model.generate_content("hello", generation_config={"max_output_tokens": 1})
+            # Test it briefly (only on the very first call)
+            model.generate_content("test", generation_config={"max_output_tokens": 1})
+            _WORKING_MODEL_NAME = model_name
             return model
         except Exception as e:
             if "404" in str(e) or "not found" in str(e).lower():
                 continue
-            # If it's a different error (like Auth), raise it immediately
             raise e
     raise Exception("No working Gemini models found in your region/project.")
 
