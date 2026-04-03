@@ -15,9 +15,10 @@ genai.configure(api_key=GEMINI_API_KEY)
 
 # Try these models in order of preference
 _MODELS = [
-    "models/gemini-1.5-flash",
-    "models/gemini-1.5-flash-latest",
-    "models/gemini-pro",  # Very stable fallback
+    "models/gemini-flash-latest",
+    "models/gemini-2.0-flash",
+    "models/gemini-2.5-flash",
+    "models/gemini-pro-latest",  # Very stable fallback
 ]
 
 def _get_working_model(system_instruction=None):
