@@ -227,6 +227,29 @@ def extract_profile_from_history(history: list) -> dict:
 
 # ─── Utilities ────────────────────────────────────────────────────────────────
 
+def clean_ivr_answer(lang: str, field_key: str, transcript: str) -> str:
+    """Takes a messy IVR transcript and returns a clean, single-value category."""
+    if not transcript or len(transcript) < 2: return "Unknown"
+    
+    prompt = f"""
+    You are a data cleaner for an agricultural IVR. 
+    Convert this messy spoken transcript for field '{field_key}' into a CLEAN, CONCISE value.
+    If the field is 'location', return ONLY the city or province name.
+    If the field is 'soil_type', return one of: [Sandy, Clay, Loam, Unknown].
+    If the field is 'terrain', return one of: [Flat, Hilly, Sloped, Near Water, Unknown].
+    
+    TRANSCRIPT: "{transcript}"
+    
+    Respond ONLY with the cleaned value. No explanation.
+    """
+    try:
+        model = _get_working_model()
+        # Fast generation for speed during the call
+        resp = model.generate_content(prompt, generation_config={"max_output_tokens": 10})
+        return resp.text.strip()
+    except Exception:
+        return transcript.strip() # Fallback to raw if logic fails
+
 def detect_language(text: str) -> str:
     """Returns 'TH' or 'EN' based on text content."""
     try:
