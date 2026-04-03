@@ -309,7 +309,20 @@ def collect_answer():
 def complete():
     call_sid = request.form.get("CallSid", "unknown")
     lang     = session.get_lang(call_sid)
-    farmer_no = request.form.get("From", "")
+    
+    # 🧠 SMART RECEIVER: Identify the human number (Farmer)
+    # If we called them (outbound), the farmer is 'To'. 
+    # If they called us (inbound), the farmer is 'From'.
+    from_no = request.form.get("From", "")
+    to_no   = request.form.get("To", "")
+    
+    system_nos = [config.TWILIO_PHONE.strip(), config.TWILIO_WHATSAPP.replace("whatsapp:", "").strip()]
+    
+    # The farmer is the number that is NOT our system number
+    farmer_no = from_no
+    if from_no.strip() in system_nos:
+        farmer_no = to_no
+
     sess     = session.get(call_sid)
 
     profile = {
