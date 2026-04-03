@@ -11,7 +11,6 @@ TWILIO_WHATSAPP    = os.getenv("TWILIO_WHATSAPP_NUMBER", "whatsapp:+14155238886"
 
 # ── Google Gemini ────────────────────────────────────
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-SECRET_TRIGGER_CODE = os.getenv("SECRET_TRIGGER_CODE", "agrispark123")  # Simple protection
 
 # ── App ─────────────────────────────────────────────
 BASE_URL   = os.getenv("BASE_URL", "http://localhost:5000")
