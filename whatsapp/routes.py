@@ -103,6 +103,12 @@ def whatsapp_webhook():
         msg.body(reply)
         return Response(str(resp), mimetype="application/xml")
 
+    if body_lower in ("stop", "cancel", "exit", "หยุด", "ยกเลิก"):
+        session.update(from_number, plan_step=0, awaiting=None)
+        reply = "✅ Stopped. You are back in general chat. Ask me anything!" if lang == "EN" else "✅ ยกเลิกแล้ว คุณกลับมาสู่การแชทปกติ ถามฉันได้เลย!"
+        msg.body(reply)
+        return Response(str(resp), mimetype="application/xml")
+
     if body_lower == "plan":
         # Start plan collection wizard
         session.update(from_number, plan_step=1, plan_data={})
