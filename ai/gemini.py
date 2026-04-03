@@ -13,8 +13,27 @@ from utils import prompts
 
 genai.configure(api_key=GEMINI_API_KEY)
 
-_TEXT_MODEL  = "gemini-1.5-flash-latest"
-_VISION_MODEL = "gemini-1.5-flash-latest"   # handles both text and vision
+# Try these models in order of preference
+_MODELS = [
+    "models/gemini-1.5-flash",
+    "models/gemini-1.5-flash-latest",
+    "models/gemini-pro",  # Very stable fallback
+]
+
+def _get_working_model(system_instruction=None):
+    """Attempt to initialize a model, falling back if one is not found."""
+    for model_name in _MODELS:
+        try:
+            model = genai.GenerativeModel(model_name, system_instruction=system_instruction)
+            # Test it briefly
+            model.generate_content("hello", generation_config={"max_output_tokens": 1})
+            return model
+        except Exception as e:
+            if "404" in str(e) or "not found" in str(e).lower():
+                continue
+            # If it's a different error (like Auth), raise it immediately
+            raise e
+    raise Exception("No working Gemini models found in your region/project.")
 
 
 # ─── Quick Query (IVR single-turn) ───────────────────────────────────────────
@@ -22,9 +41,12 @@ _VISION_MODEL = "gemini-1.5-flash-latest"   # handles both text and vision
 def quick_answer(lang: str, question: str) -> str:
     """Single-turn conversational reply for IVR quick query."""
     system = prompts.quick_system(lang)
-    model  = genai.GenerativeModel(_TEXT_MODEL, system_instruction=system)
-    resp   = model.generate_content(question)
-    return resp.text.strip()
+    try:
+        model = _get_working_model(system_instruction=system)
+        resp  = model.generate_content(question)
+        return resp.text.strip()
+    except Exception as e:
+        return _handle_err(lang, e)
 
 
 # ─── Detailed Farm Plan ───────────────────────────────────────────────────────
@@ -41,9 +63,12 @@ def generate_farm_plan(lang: str, profile: dict, weather_summary: str = "Not ava
         terrain=profile.get("terrain", "Unknown"),
         weather_summary=weather_summary,
     )
-    model = genai.GenerativeModel(_TEXT_MODEL)
-    resp  = model.generate_content(prompt)
-    return resp.text.strip()
+    try:
+        model = _get_working_model()
+        resp  = model.generate_content(prompt)
+        return resp.text.strip()
+    except Exception as e:
+        return _handle_err(lang, e)
 
 
 # ─── SMS Summary ─────────────────────────────────────────────────────────────
@@ -57,9 +82,12 @@ def generate_sms_summary(lang: str, profile: dict, key_points: str) -> str:
         location=profile.get("location", "your area"),
         key_points=key_points,
     )
-    model = genai.GenerativeModel(_TEXT_MODEL)
-    resp  = model.generate_content(prompt)
-    return resp.text.strip()[:320]  # allow some overflow, Twilio handles multi-SMS
+    try:
+        model = _get_working_model()
+        resp  = model.generate_content(prompt)
+        return resp.text.strip()[:320]
+    except Exception as e:
+        return _handle_err(lang, e)
 
 
 # ─── WhatsApp Multi-turn Chat ─────────────────────────────────────────────────
@@ -67,10 +95,13 @@ def generate_sms_summary(lang: str, profile: dict, key_points: str) -> str:
 def chat_reply(lang: str, message: str, history: list) -> str:
     """Multi-turn WhatsApp chat with conversation history."""
     system = prompts.chat_system(lang)
-    model  = genai.GenerativeModel(_TEXT_MODEL, system_instruction=system)
-    chat   = model.start_chat(history=_format_history(history))
-    resp   = chat.send_message(message)
-    return resp.text.strip()
+    try:
+        model = _get_working_model(system_instruction=system)
+        chat  = model.start_chat(history=_format_history(history))
+        resp  = chat.send_message(message)
+        return resp.text.strip()
+    except Exception as e:
+        return _handle_err(lang, e)
 
 
 def _format_history(history: list) -> list:
@@ -90,23 +121,19 @@ def _format_history(history: list) -> list:
 def analyze_image(lang: str, image_url: str, twilio_sid: str, twilio_token: str) -> str:
     """Download image from Twilio and analyze with Gemini Vision."""
     try:
-        # Download from Twilio (needs auth)
         response = requests.get(image_url, auth=(twilio_sid, twilio_token), timeout=15)
         response.raise_for_status()
         image = Image.open(BytesIO(response.content))
 
         prompt_text = prompts.image_prompt(lang)
-        model = genai.GenerativeModel(_VISION_MODEL)
+        model = _get_working_model()
         resp  = model.generate_content([prompt_text, image])
         return resp.text.strip()
-
     except Exception as e:
-        if lang == "TH":
-            return f"ขอโทษ ไม่สามารถวิเคราะห์รูปภาพได้ กรุณาลองอีกครั้ง ({str(e)[:50]})"
-        return f"Sorry, I couldn't analyze the image. Please try again. ({str(e)[:50]})"
+        return _handle_err(lang, e)
 
 
-# ─── Language Detection ───────────────────────────────────────────────────────
+# ─── Utilities ────────────────────────────────────────────────────────────────
 
 def detect_language(text: str) -> str:
     """Returns 'TH' or 'EN' based on text content."""
@@ -116,3 +143,9 @@ def detect_language(text: str) -> str:
         return "TH" if code == "th" else "EN"
     except Exception:
         return "EN"
+
+def _handle_err(lang: str, e: Exception) -> str:
+    msg = str(e)[:100]
+    if lang == "TH":
+        return f"ขอโทษ เกิดปัญหาในการประมวลผล AI: {msg}"
+    return f"Sorry, I had an AI processing issue: {msg}"
