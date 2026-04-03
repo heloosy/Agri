@@ -152,4 +152,14 @@ def generate_pdf(profile: dict, plan_text: str, lang: str = "EN") -> str:
 def get_pdf_url(filepath: str) -> str:
     """Convert local path to public URL for WhatsApp delivery."""
     filename = os.path.basename(filepath)
-    return f"{config.BASE_URL}/static/pdf/{filename}"
+    base = config.BASE_URL.strip("/")
+    
+    # 🕵️‍♂️ SMART PROTOCOL: Ensure the URL has http/https
+    if base and not (base.startswith("http://") or base.startswith("https://")):
+        # Default to https for security unless it's localhost
+        if "localhost" in base or "127.0.0.1" in base:
+            base = f"http://{base}"
+        else:
+            base = f"https://{base}"
+            
+    return f"{base}/static/pdf/{filename}"
