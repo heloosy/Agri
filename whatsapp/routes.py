@@ -91,6 +91,38 @@ def whatsapp_webhook():
             msg.body(reply)
             return Response(str(resp), mimetype="application/xml")
 
+        # ─── Manual Shortcuts (From Old Logic) ────────────────────────
+        if body_lower in ("stop", "cancel", "exit", "หยุด", "ยกเลิก"):
+            session.update(from_number, plan_step=0, awaiting=None)
+            reply = "✅ Stopped. You are back in general chat. Ask me anything!" if lang == "EN" else "✅ ยกเลิกแล้ว คุณกลับมาสู่การแชทปกติ ถามฉันได้เลย!"
+            msg.body(reply)
+            return Response(str(resp), mimetype="application/xml")
+
+        if body_lower in ("weather", "อากาศ"):
+            stored_loc = sess.get("plan_data", {}).get("location") or sess.get("location")
+            if stored_loc:
+                summary = get_weather_summary(stored_loc)
+                prefix  = f"🌦 Weather for {stored_loc}:\n" if lang == "EN" else f"🌦 อากาศที่ {stored_loc}:\n"
+                msg.body(prefix + summary)
+            else:
+                ask = "Which location do you want weather for?" if lang == "EN" else "คุณต้องการพยากรณ์อากาศของที่ไหน?"
+                session.update(from_number, awaiting="weather_location")
+                msg.body(ask)
+            return Response(str(resp), mimetype="application/xml")
+
+        if body_lower in ("price", "ราคา"):
+            price_msg = _market_price_info(lang)
+            msg.body(price_msg)
+            return Response(str(resp), mimetype="application/xml")
+
+        # ─── Awaiting weather location ────────────────────────────────
+        if sess.get("awaiting") == "weather_location":
+            session.update(from_number, location=body, awaiting=None)
+            summary = get_weather_summary(body)
+            prefix  = f"🌦 Weather for {body}:\n" if lang == "EN" else f"🌦 อากาศที่ {body}:\n"
+            msg.body(prefix + summary)
+            return Response(str(resp), mimetype="application/xml")
+
         # ─── THE AGENTIC CHATBOT (Proper Chatbot Flow) ────────────────
         history = session.get_wa_history(from_number)
         
@@ -103,7 +135,7 @@ def whatsapp_webhook():
             session.append_wa_history(from_number, "model", ai_reply)
 
             # 🎯 AGENTIC: Check if AI wants to generate a PDF plan
-            if "[GENERATE_PLAN]" in ai_reply:
+            if ai_reply and "[GENERATE_PLAN]" in ai_reply:
                 ai_reply = ai_reply.replace("[GENERATE_PLAN]", "").strip()
                 
                 # 1. Ask Gemini to extract profile from history
@@ -131,10 +163,16 @@ def whatsapp_webhook():
                     ai_reply += f"\n\n⚠️ (I had an issue generating your PDF: {str(pdf_err)[:40]}...)"
 
         except Exception as e:
-            ai_reply = (f"Sorry, I had an AI processing issue. Please try again. ({str(e)[:40]}...)" 
+            import traceback
+            print(f"Chat error: {traceback.format_exc()}")
+            ai_reply = (f"I had a small thinking hiccup. Please try again! ({str(e)[:40]}...)" 
                         if lang == "EN" else 
-                        f"ขอโทษ มีปัญหาในการประมวลผล AI กรุณาลองอีกครั้ง ({str(e)[:40]}...)")
+                        f"ขอโทษ มีปัญหาในการประมวลผล กรุณาลองอีกครั้ง ({str(e)[:40]}...)")
 
+        # 🚨 Safety: Ensure empty replies don't stay silent
+        if not str(ai_reply).strip():
+            ai_reply = "I'm thinking... please ask that again!" if lang == "EN" else "กำลังประมวลผล... กรุณาลองใหม่อีกครั้ง"
+            
         msg.body(ai_reply)
         return Response(str(resp), mimetype="application/xml")
     
