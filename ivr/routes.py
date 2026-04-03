@@ -277,7 +277,14 @@ def collect_answer():
         return _twiml(resp)
 
     field_key = steps[step - 1][0]
-    session.update(call_sid, **{field_key: transcript})
+    
+    # 🧠 LIGHTNING UPGRADE: Clean the messy speech transcript
+    try:
+        clean_text = gemini.clean_ivr_answer(lang, field_key, transcript)
+        print(f"🎙️ VOICE CLARITY: Raw='{transcript}' -> Clean='{clean_text}'")
+        session.update(call_sid, **{field_key: clean_text})
+    except Exception:
+        session.update(call_sid, **{field_key: transcript})
 
     resp = VoiceResponse()
     if step < len(steps):
