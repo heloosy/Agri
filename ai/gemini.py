@@ -136,9 +136,9 @@ def _groq_chat(lang: str, message: str, history: list, system: str = None) -> st
     messages.append({"role": "user", "content": message})
     
     try:
-        # Use a high-quality model
+        # Use the latest high-quality model
         completion = groq_client.chat.completions.create(
-            model="llama-3.1-70b-versatile",
+            model="llama-3.3-70b-versatile",
             messages=messages,
             temperature=0.7,
             max_tokens=1024
