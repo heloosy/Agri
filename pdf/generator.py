@@ -31,19 +31,19 @@ def _styles():
     base = getSampleStyleSheet()
     return {
         "title": ParagraphStyle("title", fontName="Helvetica-Bold",
-                                fontSize=22, textColor=WHITE,
-                                spaceAfter=6, alignment=TA_CENTER),
-        "subtitle": ParagraphStyle("subtitle", fontName="Helvetica",
-                                   fontSize=11, textColor=GREEN_LIGHT,
-                                   spaceAfter=4, alignment=TA_CENTER),
+                                fontSize=24, textColor=WHITE,
+                                spaceAfter=8, alignment=TA_CENTER),
+        "subtitle": ParagraphStyle("subtitle", fontName="Helvetica-Bold",
+                                   fontSize=14, textColor=GOLD,
+                                   spaceAfter=6, alignment=TA_CENTER),
         "section": ParagraphStyle("section", fontName="Helvetica-Bold",
-                                  fontSize=13, textColor=GREEN_DARK,
-                                  spaceBefore=14, spaceAfter=4),
+                                  fontSize=15, textColor=colors.HexColor("#0D3B16"),
+                                  spaceBefore=16, spaceAfter=6),
         "body": ParagraphStyle("body", fontName="Helvetica",
-                               fontSize=10, textColor=GREY_TEXT,
-                               spaceAfter=6, leading=15),
+                               fontSize=11, textColor=GREY_TEXT,
+                               spaceAfter=6, leading=16),
         "small": ParagraphStyle("small", fontName="Helvetica",
-                                fontSize=8, textColor=GREY_TEXT,
+                                fontSize=9, textColor=GREY_TEXT,
                                 alignment=TA_CENTER),
     }
 
@@ -72,27 +72,27 @@ def generate_pdf(profile: dict, plan_text: str, lang: str = "EN") -> str:
 
     # ── Header Banner ────────────────────────────────────────────────────────
     header_data = [[
-        Paragraph("🌾 AgriSpark 2.0", st["title"]),
+        Paragraph("🌾 AGRISPARK MASTER ADVISORY", st["title"]),
     ]]
     header_table = Table(header_data, colWidths=[17*cm])
     header_table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, -1), GREEN_DARK),
-        ("TOPPADDING",    (0, 0), (-1, -1), 18),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 14),
+        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#0D361F")), # High-Authority Dark Green
+        ("TOPPADDING",    (0, 0), (-1, -1), 22),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 18),
         ("LEFTPADDING",   (0, 0), (-1, -1), 10),
-        ("ROUNDEDCORNERS", [6]),
+        ("ROUNDEDCORNERS", [8]),
     ]))
     story.append(header_table)
 
-    subtitle = ("Personalised Farm Advisory Report" if lang == "EN"
-                else "รายงานแผนการเกษตรส่วนตัว")
+    subtitle = ("MISSION-CRITICAL FARM COMMANDS" if lang == "EN"
+                else "คำสั่งการทำฟาร์มที่สำคัญยิ่ง")
     story.append(Paragraph(subtitle, st["subtitle"]))
     story.append(Spacer(1, 0.4*cm))
 
     # ── Date & ID ────────────────────────────────────────────────────────────
     date_str = datetime.now().strftime("%d %B %Y")
-    story.append(Paragraph(f"Generated: {date_str}  |  Plan ID: {farmer_id}", st["small"]))
-    story.append(HRFlowable(width="100%", thickness=1, color=GREEN_MID, spaceAfter=10))
+    story.append(Paragraph(f"GENRATED: {date_str}  |  ARCHIVE ID: {farmer_id}", st["small"]))
+    story.append(HRFlowable(width="100%", thickness=2.5, color=GREEN_DARK, spaceAfter=12))
 
     # ── Farmer Profile Table ──────────────────────────────────────────────────
     heading = "FARMER PROFILE" if lang == "EN" else "ข้อมูลเกษตรกร"
