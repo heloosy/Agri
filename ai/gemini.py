@@ -70,7 +70,7 @@ def quick_answer(lang: str, question: str) -> str:
         return _handle_err(lang, e)
 
 
-# ─── Detailed Farm Plan ───────────────────────────────────────────────────────
+# ─── Detailed Farm Plan (MASTER) ──────────────────────────────────────────────
 
 def generate_farm_plan(lang: str, profile: dict, weather_summary: str = "Not available") -> str:
     """Generate the full AI farm plan with Groq fallback."""
@@ -81,13 +81,42 @@ def generate_farm_plan(lang: str, profile: dict, weather_summary: str = "Not ava
     )
     try:
         model = _get_working_model()
-        resp  = model.generate_content(prompt)
+        # Increased tokens for more depth and exact temperature for tactical control
+        resp  = model.generate_content(prompt, generation_config={"max_output_tokens": 1500, "temperature": 0.3})
         return resp.text.strip()
     except Exception as e:
         if groq_client:
             print(f"📡 AI FALLBACK (PLAN): Gemini hit an issue. Switching to GROQ...")
             return _groq_chat(lang, prompt, [])
         return _handle_err(lang, e)
+
+def generate_wa_summary(lang: str, plan_text: str) -> str:
+    """Generates a professional, emoji-rich WhatsApp summary of a farm plan."""
+    system = prompts.WA_SUMMARY_SYSTEM_TH if lang == "TH" else prompts.WA_SUMMARY_SYSTEM_EN
+    prompt = prompts.wa_summary_prompt(lang, plan_text)
+    try:
+        model = _get_working_model(system_instruction=system)
+        resp  = model.generate_content(prompt)
+        return resp.text.strip()
+    except Exception:
+        # Simple fallback
+        if lang == "TH":
+            return "🌾 แผนยุทธวิธีของคุณพร้อมแล้ว! ตรวจสอบไฟล์ PDF ล่าสุดที่คุณได้รับครับ"
+        return "🌾 MISSION-CRITICAL PLAN READY! Check the attached PDF for your Tactical Manual."
+
+def generate_voice_summary(lang: str, plan_text: str) -> str:
+    """Generates a conversational spoken summary of a technical plan."""
+    system = prompts.VOICE_SUMMARY_SYSTEM_TH if lang == "TH" else prompts.VOICE_SUMMARY_SYSTEM_EN
+    prompt = prompts.voice_summary_prompt(lang, plan_text)
+    try:
+        model = _get_working_model(system_instruction=system)
+        resp  = model.generate_content(prompt)
+        return resp.text.strip()
+    except Exception:
+        # Fallback if AI fails: just return a simple goodbye
+        if lang == "TH":
+            return "ฉันส่งแผนการเกษตรฉบับเต็มให้คุณทาง WhatsApp แล้วครับ ขอให้โชคดีกับการเพาะปลูก!"
+        return "I've sent your full farm plan to your WhatsApp now. Good luck with your harvest!"
 
 
 # ─── SMS Summary ─────────────────────────────────────────────────────────────
@@ -106,7 +135,6 @@ def generate_sms_summary(lang: str, profile: dict, key_points: str) -> str:
         resp  = model.generate_content(prompt)
         return resp.text.strip()[:320]
     except Exception:
-        # 🛡️ THE SAFETY SWITCH: Try Groq for a quick SMS summary
         if groq_client:
             try:
                 messages = [{"role": "system", "content": "You are a concise SMS writer. Max 150 chars."},
@@ -197,7 +225,7 @@ def analyze_image(lang: str, image_url: str, twilio_sid: str, twilio_token: str)
 
 
 def extract_profile_from_history(history: list) -> dict:
-    """Uses Gemini to extract structured farmer info from chat history JSON with Groq fallback."""
+    """Uses LLM to extract structured farmer info with Groq fallback."""
     history_str = "\n".join([f"{m['role'].upper()}: {m['text']}" for m in history])
     
     prompt = f"""
@@ -222,17 +250,15 @@ def extract_profile_from_history(history: list) -> dict:
         raw = model.generate_content(prompt).text.strip()
         return _parse_profile_json(raw)
     except Exception as e:
-        # 🛡️ THE SAFETY SWITCH: Use Groq if Gemini hits a quota limit
         if groq_client:
             print(f"📡 AI FALLBACK (EXTRACT): Gemini hit an issue ({str(e)[:40]}). Switching to GROQ...")
             try:
-                # Use a simple chat completion with same prompt
                 messages = [{"role": "system", "content": "You are a data extraction bot. Respond only in JSON."},
                             {"role": "user", "content": prompt}]
                 completion = groq_client.chat.completions.create(
                     model="llama-3.3-70b-versatile",
                     messages=messages,
-                    temperature=0.1 # Low temperature for strict JSON
+                    temperature=0.1
                 )
                 raw = str(completion.choices[0].message.content or "{}").strip()
                 return _parse_profile_json(raw)
@@ -282,7 +308,6 @@ def clean_ivr_answer(lang: str, field_key: str, transcript: str) -> str:
         resp = model.generate_content(prompt, generation_config={"max_output_tokens": 10})
         return resp.text.strip()
     except Exception as e:
-        # 🛡️ THE SAFETY SWITCH: Try Groq for data cleaning
         if groq_client:
             try:
                 messages = [{"role": "system", "content": "You are a concise data cleaner. Respond only with one or two words."},
