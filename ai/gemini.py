@@ -242,41 +242,60 @@ def analyze_image(lang: str, image_url: str, twilio_sid: str, twilio_token: str)
 
         prompt_text = prompts.image_prompt(lang)
         
-        # 🧪 GROQ VISION (Llama 3.2 11B Vision is blazing fast)
+        # 🧪 GROQ VISION (Llama 3.2 Vision)
         if groq_client:
-            try:
-                import base64
-                base64_image = base64.b64encode(img_data).decode('utf-8')
-                completion = groq_client.chat.completions.create(
-                    model="llama-3.2-11b-vision-preview",
-                    messages=[
-                        {
-                            "role": "user",
-                            "content": [
-                                {"type": "text", "text": prompt_text},
-                                {
-                                    "type": "image_url",
-                                    "image_url": {
-                                        "url": f"data:image/jpeg;base64,{base64_image}",
+            models_to_try = ["llama-3.2-11b-vision-preview", "llama-3.2-90b-vision-preview"]
+            for model_id in models_to_try:
+                try:
+                    import base64
+                    base64_image = base64.b64encode(img_data).decode('utf-8')
+                    completion = groq_client.chat.completions.create(
+                        model=model_id,
+                        messages=[
+                            {
+                                "role": "user",
+                                "content": [
+                                    {"type": "text", "text": prompt_text},
+                                    {
+                                        "type": "image_url",
+                                        "image_url": {
+                                            "url": f"data:image/jpeg;base64,{base64_image}",
+                                        },
                                     },
-                                },
-                            ],
-                        }
-                    ],
-                    max_tokens=1024,
-                )
-                return str(completion.choices[0].message.content or "").strip()
-            except Exception as v_err:
-                print(f"📡 Groq Vision hit a snag: {v_err}. Falling back to Gemini...")
+                                ],
+                            }
+                        ],
+                        max_tokens=1024,
+                    )
+                    print(f"✅ VISION SUCCESS: Processed image using Groq ({model_id})")
+                    return str(completion.choices[0].message.content or "").strip()
+                except Exception as v_err:
+                    print(f"⚠️ Groq Vision snag ({model_id}): {v_err}")
+            
+            print("📡 All Groq Vision models failed. Falling back to Gemini...")
+        else:
+            print("⚠️ GROQ CLIENT MISSING: Skipping Groq Vision. Please check GROQ_API_KEY.")
 
         # Gemini Fallback
-        from PIL import Image
-        from io import BytesIO
-        image = Image.open(BytesIO(img_data))
-        model = _get_working_model()
-        resp  = model.generate_content([prompt_text, image])
-        return resp.text.strip()
+        try:
+            from PIL import Image
+            from io import BytesIO
+            image = Image.open(BytesIO(img_data))
+            model = _get_working_model()
+            resp  = model.generate_content([prompt_text, image])
+            print("✅ VISION SUCCESS: Processed image using Gemini")
+            return resp.text.strip()
+        except Exception as g_err:
+             print(f"❌ Gemini Vision failure: {g_err}")
+             raise g_err
+
+    except requests.exceptions.HTTPError as http_err:
+        print(f"❌ IMAGE DOWNLOAD ERROR: {http_err}")
+        if response.status_code == 401:
+            return "Unable to analyze: Twilio Auth failed. Check ACCOUNT_SID/AUTH_TOKEN."
+        return f"Unable to analyze: Image download failed (Error {response.status_code})."
     except Exception as e:
+        print(f"❌ MASTER VISION ERROR: {e}")
         return _handle_err(lang, e)
 
 
