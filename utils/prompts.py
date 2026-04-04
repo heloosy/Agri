@@ -209,3 +209,29 @@ CHAT_SYSTEM_TH = """
 - แนะนำ: ใช้ข้อมูลโปรไฟล์เพื่อให้คำแนะนำที่เหมาะสมกับท้องถิ่น
 - เสนอแผน: หากคุณมีข้อมูลเพียงพอ ให้แจ้งว่าคุณสามารถสร้างไฟล์ PDF แผนการเกษตรแบบมืออาชีพให้ได้หากต้องการ
 
+ตอบเป็นภาษาไทย
+"""
+
+def chat_system(lang: str) -> str:
+    return CHAT_SYSTEM_TH if lang == "TH" else CHAT_SYSTEM_EN
+
+
+# ─── SMS Summary ─────────────────────────────────────────────────────────────
+
+SMS_SUMMARY_EN = """
+Write a single paragraph SMS summary (under 160 characters) of this farm plan for {name}.
+Crop: {current_crop}, Location: {location}.
+Key advice: {key_points}
+Start with "AgriSpark:" and end with "Full plan on WhatsApp."
+"""
+
+SMS_SUMMARY_TH = """
+เขียนสรุป SMS ย่อหน้าเดียว (ไม่เกิน 160 ตัวอักษร) ของแผนฟาร์มนี้สำหรับ {name}
+พืช: {current_crop}, ที่ตั้ง: {location}
+คำแนะนำหลัก: {key_points}
+เริ่มด้วย "AgriSpark:" และจบด้วย "แผนเต็มบน WhatsApp"
+"""
+
+def sms_summary_prompt(lang: str, **kwargs) -> str:
+    tmpl = SMS_SUMMARY_TH if lang == "TH" else SMS_SUMMARY_EN
+    return tmpl.format(**kwargs)
