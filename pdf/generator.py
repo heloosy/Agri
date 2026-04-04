@@ -124,19 +124,26 @@ def generate_pdf(profile: dict, plan_text: str, lang: str = "EN") -> str:
     story.append(HRFlowable(width="100%", thickness=1, color=GREEN_MID, spaceAfter=6))
     story.append(Paragraph(plan_heading, st["section"]))
 
-    # Split plan text into paragraphs by double newlines or numbered sections
+    # Split plan text into paragraphs more safely
     for para in plan_text.split("\n"):
         stripped = para.strip()
         if not stripped:
             story.append(Spacer(1, 0.2*cm))
             continue
+        
+        # Clean text to avoid ReportLab markup errors
+        clean_para = (stripped.replace("&", "&amp;")
+                             .replace("<", "&lt;")
+                             .replace(">", "&gt;")
+                             .replace('"', "&quot;"))
+                             
         # Detect section headers (numbered or all-caps lines)
-        if stripped and (stripped[0].isdigit() and "." in stripped[:3]):
-            story.append(Paragraph(stripped, st["section"]))
-        elif stripped.isupper() and len(stripped) > 3:
-            story.append(Paragraph(stripped, st["section"]))
+        if clean_para and (clean_para[0].isdigit() and "." in clean_para[:3]):
+            story.append(Paragraph(f"<b>{clean_para}</b>", st["section"]))
+        elif clean_para.isupper() and len(clean_para) > 3:
+            story.append(Paragraph(clean_para, st["section"]))
         else:
-            story.append(Paragraph(stripped, st["body"]))
+            story.append(Paragraph(clean_para, st["body"]))
 
     # ── Footer ───────────────────────────────────────────────────────────────
     story.append(Spacer(1, 0.6*cm))
