@@ -366,13 +366,10 @@ def complete():
                 print("⚠️ WARNING: Localhost URL detected. Twilio cannot send this media via WhatsApp.")
 
             try:
-                wa_body = (
-                    f"🌾 Hello {profile['name']}! Your AgriSpark 2.0 farm plan is ready. "
-                    f"See your personalised recommendations below."
-                    if lang == "EN"
-                    else
-                    f"🌾 สวัสดี {profile['name']}! แผนการเกษตร AgriSpark 2.0 ของคุณพร้อมแล้ว"
-                )
+                # 5.5 Generate Medium-Detail WhatsApp Summary
+                print("📡 AGENTIC VOICE: Generating WhatsApp executive summary...")
+                wa_body = gemini.generate_wa_summary(lang, plan_text)
+                
                 send_whatsapp_pdf(farmer_no, wa_body, pdf_url)
                 print("✅ WhatsApp PDF Sent Successfully!")
             except Exception as wa_err:
@@ -385,8 +382,9 @@ def complete():
             except Exception as sms_err:
                 print(f"❌ SMS Summary Error: {sms_err}")
 
-        # 7. Read a spoken summary over the phone
-        spoken_summary = _extract_spoken_summary(plan_text, lang)
+        # 7. Read a conversational spoken summary over the phone
+        print("📡 AGENTIC VOICE: Generating conversational wrap-up...")
+        spoken_summary = gemini.generate_voice_summary(lang, plan_text)
         _say(resp, spoken_summary, lang)
 
     except Exception as e:
