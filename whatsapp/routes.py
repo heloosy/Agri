@@ -120,10 +120,11 @@ def whatsapp_webhook():
 
         # ─── AGENTIC CHATBOT ──────────────────────────────────────────
         history = session.get_wa_history(from_number)
+        profile = session.load_farmer_profile(from_number)
         
         try:
             # Get response
-            ai_reply = gemini.chat_reply(lang, body, history)
+            ai_reply = gemini.chat_reply(lang, body, history, profile)
             
             # Save history
             session.append_wa_history(from_number, "user", body)
