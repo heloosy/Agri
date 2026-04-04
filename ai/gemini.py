@@ -57,63 +57,72 @@ def _get_working_model(system_instruction=None):
 # ─── Quick Query (IVR single-turn) ───────────────────────────────────────────
 
 def quick_answer(lang: str, question: str) -> str:
-    """Single-turn conversational reply for IVR quick query with Groq fallback."""
+    """Single-turn conversational reply for IVR using GROQ as primary."""
+    system = prompts.quick_system(lang)
+    if groq_client:
+        return _groq_chat(lang, question, [], system)
+    
+    # Gemini Fallback (Silently)
     try:
-        system = prompts.quick_system(lang)
         model = _get_working_model(system_instruction=system)
         resp  = model.generate_content(question)
         return resp.text.strip()
     except Exception as e:
-        if groq_client:
-            print(f"📡 AI FALLBACK (IVR): Gemini hit an issue ({str(e)[:40]}). Switching to GROQ...")
-            return _groq_chat(lang, question, [], prompts.quick_system(lang))
         return _handle_err(lang, e)
 
 
 # ─── Detailed Farm Plan (MASTER) ──────────────────────────────────────────────
 
 def generate_farm_plan(lang: str, profile: dict, weather_summary: str = "Not available") -> str:
-    """Generate the full AI farm plan with Groq fallback."""
+    """Generate the full AI farm plan using GROQ as primary."""
     prompt = prompts.plan_prompt(
         lang,
         **profile,
         weather_summary=weather_summary
     )
+    if groq_client:
+        return _groq_chat(lang, prompt, [])
+
+    # Gemini Fallback (Silently)
     try:
         model = _get_working_model()
-        # Increased tokens for more depth and exact temperature for tactical control
         resp  = model.generate_content(prompt, generation_config={"max_output_tokens": 1500, "temperature": 0.3})
         return resp.text.strip()
     except Exception as e:
-        if groq_client:
-            print(f"📡 AI FALLBACK (PLAN): Gemini hit an issue. Switching to GROQ...")
-            return _groq_chat(lang, prompt, [])
         return _handle_err(lang, e)
 
+
 def generate_wa_summary(lang: str, plan_text: str) -> str:
-    """Generates a professional, emoji-rich WhatsApp summary of a farm plan."""
+    """Generates a professional WhatsApp summary using GROQ as primary."""
     system = prompts.WA_SUMMARY_SYSTEM_TH if lang == "TH" else prompts.WA_SUMMARY_SYSTEM_EN
     prompt = prompts.wa_summary_prompt(lang, plan_text)
+    if groq_client:
+        return _groq_chat(lang, prompt, [], system)
+        
+    # Gemini Fallback (Silently)
     try:
         model = _get_working_model(system_instruction=system)
         resp  = model.generate_content(prompt)
         return resp.text.strip()
     except Exception:
-        # Simple fallback
         if lang == "TH":
             return "🌾 แผนยุทธวิธีของคุณพร้อมแล้ว! ตรวจสอบไฟล์ PDF ล่าสุดที่คุณได้รับครับ"
         return "🌾 MISSION-CRITICAL PLAN READY! Check the attached PDF for your Tactical Manual."
 
+
 def generate_voice_summary(lang: str, plan_text: str) -> str:
-    """Generates a conversational spoken summary of a technical plan."""
+    """Generates a conversational spoken summary using GROQ as primary."""
     system = prompts.VOICE_SUMMARY_SYSTEM_TH if lang == "TH" else prompts.VOICE_SUMMARY_SYSTEM_EN
     prompt = prompts.voice_summary_prompt(lang, plan_text)
+    if groq_client:
+        return _groq_chat(lang, prompt, [], system)
+
+    # Gemini Fallback (Silently)
     try:
         model = _get_working_model(system_instruction=system)
         resp  = model.generate_content(prompt)
         return resp.text.strip()
     except Exception:
-        # Fallback if AI fails: just return a simple goodbye
         if lang == "TH":
             return "ฉันส่งแผนการเกษตรฉบับเต็มให้คุณทาง WhatsApp แล้วครับ ขอให้โชคดีกับการเพาะปลูก!"
         return "I've sent your full farm plan to your WhatsApp now. Good luck with your harvest!"
@@ -153,17 +162,18 @@ def generate_sms_summary(lang: str, profile: dict, key_points: str) -> str:
 # ─── WhatsApp Multi-turn Chat ─────────────────────────────────────────────────
 
 def chat_reply(lang: str, message: str, history: list) -> str:
-    """Multi-turn WhatsApp chat with aggressive Groq fallback."""
+    """Multi-turn WhatsApp chat using GROQ as primary."""
+    system = prompts.chat_system(lang)
+    if groq_client:
+        return _groq_chat(lang, message, history, system)
+
+    # Gemini Fallback (Silently)
     try:
-        system = prompts.chat_system(lang)
         model = _get_working_model(system_instruction=system)
         chat  = model.start_chat(history=_format_history(history))
         resp  = chat.send_message(message)
         return resp.text.strip()
     except Exception as e:
-        if groq_client:
-            print(f"📡 AI FALLBACK (CHAT): Gemini is busy ({str(e)[:40]}). Switching to GROQ...")
-            return _groq_chat(lang, message, history, prompts.chat_system(lang))
         return _handle_err(lang, e)
 
 
