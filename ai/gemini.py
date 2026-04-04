@@ -161,9 +161,23 @@ def generate_sms_summary(lang: str, profile: dict, key_points: str) -> str:
 
 # ─── WhatsApp Multi-turn Chat ─────────────────────────────────────────────────
 
-def chat_reply(lang: str, message: str, history: list) -> str:
-    """Multi-turn WhatsApp chat using GROQ as primary."""
+def chat_reply(lang: str, message: str, history: list, profile: dict = None) -> str:
+    """Multi-turn WhatsApp chat using GROQ as primary with optional farmer profile."""
     system = prompts.chat_system(lang)
+    
+    # 🧠 Inject Profile Context for hyper-personalization
+    if profile:
+        context = f"""
+        FARMER CONTEXT (STRICT):
+        - Name: {profile.get('name', 'Farmer')}
+        - Location: {profile.get('location', 'Unknown')}
+        - Soil: {profile.get('soil_type', 'Unknown')}
+        - Current Crop: {profile.get('current_crop', 'Unknown')}
+        
+        Use this data for specific, actionable agricultural advice.
+        """
+        system = f"{system}\n\n{context}"
+        
     if groq_client:
         return _groq_chat(lang, message, history, system)
 
@@ -220,13 +234,45 @@ def _format_history(history: list) -> list:
 # ─── Image Analysis (WhatsApp) ────────────────────────────────────────────────
 
 def analyze_image(lang: str, image_url: str, twilio_sid: str, twilio_token: str) -> str:
-    """Download image from Twilio and analyze with Gemini Vision."""
+    """Download image from Twilio and analyze with GROQ VISION as primary."""
     try:
         response = requests.get(image_url, auth=(twilio_sid, twilio_token), timeout=15)
         response.raise_for_status()
-        image = Image.open(BytesIO(response.content))
+        img_data = response.content
 
         prompt_text = prompts.image_prompt(lang)
+        
+        # 🧪 GROQ VISION (Llama 3.2 11B Vision is blazing fast)
+        if groq_client:
+            try:
+                import base64
+                base64_image = base64.b64encode(img_data).decode('utf-8')
+                completion = groq_client.chat.completions.create(
+                    model="llama-3.2-11b-vision-preview",
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "text", "text": prompt_text},
+                                {
+                                    "type": "image_url",
+                                    "image_url": {
+                                        "url": f"data:image/jpeg;base64,{base64_image}",
+                                    },
+                                },
+                            ],
+                        }
+                    ],
+                    max_tokens=1024,
+                )
+                return str(completion.choices[0].message.content or "").strip()
+            except Exception as v_err:
+                print(f"📡 Groq Vision hit a snag: {v_err}. Falling back to Gemini...")
+
+        # Gemini Fallback
+        from PIL import Image
+        from io import BytesIO
+        image = Image.open(BytesIO(img_data))
         model = _get_working_model()
         resp  = model.generate_content([prompt_text, image])
         return resp.text.strip()
