@@ -1,67 +1,110 @@
 """
-AgriSpark 2.0 — Session Manager
-Stores per-call (IVR) and per-phone (WhatsApp) state in memory.
-In production, swap _store for Redis.
+AgriSpark 2.0 — Session & State Manager
+Handles ephemeral IVR sessions and persistent farmer profiles.
 """
 
-_store: dict = {}   # key → session dict
+import os
+import json
+import time
 
+# --- Configuration ---
+DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
+os.makedirs(DATA_DIR, exist_ok=True)
 
-# ─── Generic helpers ──────────────────────────────────────────────────────────
+PROFILES_FILE = os.path.join(DATA_DIR, "profiles.json")
+HISTORY_FILE  = os.path.join(DATA_DIR, "wa_history.json")
 
-def get(key: str) -> dict:
-    return _store.get(key, {})
+# Ephemeral in-memory store for active calls/sessions
+_SESSIONS = {}
 
+# --- Persistent Loading/Saving ---
 
-def set(key: str, data: dict) -> None:
-    _store[key] = data
+def _load_json(path):
+    if not os.path.exists(path):
+        return {}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
 
+def _save_json(path, data):
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+    except Exception as e:
+        print(f"Error saving session data to {path}: {e}")
 
-def update(key: str, **kwargs) -> dict:
-    session = _store.get(key, {})
-    session.update(kwargs)
-    _store[key] = session
-    return session
+# --- Core Session API (Ephemeral) ---
 
+def get(session_id):
+    """Retrieve session data by ID (CallSid or Phone). Returns dict."""
+    return _SESSIONS.get(session_id, {})
 
-def delete(key: str) -> None:
-    _store.pop(key, None)
+def set(session_id, data):
+    """Set the entire session data for an ID."""
+    _SESSIONS[session_id] = data
 
+def update(session_id, **kwargs):
+    """Update specific fields in a session."""
+    if session_id not in _SESSIONS:
+        _SESSIONS[session_id] = {}
+    _SESSIONS[session_id].update(kwargs)
 
-# ─── IVR helpers ─────────────────────────────────────────────────────────────
+def delete(session_id):
+    """Remove a session from memory."""
+    if session_id in _SESSIONS:
+        del _SESSIONS[session_id]
 
-def get_lang(call_sid: str) -> str:
-    """Return stored language for call ('EN' or 'TH'), default EN."""
-    return _store.get(call_sid, {}).get("lang", "EN")
+def get_lang(session_id):
+    return _SESSIONS.get(session_id, {}).get("lang", "EN")
 
+def get_step(session_id):
+    return _SESSIONS.get(session_id, {}).get("step", 1)
 
-def get_mode(call_sid: str) -> str:
-    return _store.get(call_sid, {}).get("mode", "quick")
+def increment_step(session_id):
+    curr = get_step(session_id)
+    update(session_id, step=curr + 1)
 
+# --- Farmer Profiles (Persistent) ---
 
-def get_step(call_sid: str) -> int:
-    return _store.get(call_sid, {}).get("step", 1)
+def save_farmer_profile(phone, profile_data):
+    """Save/update a farmer's profile linked to their phone number."""
+    profiles = _load_json(PROFILES_FILE)
+    profiles[phone] = profile_data
+    _save_json(PROFILES_FILE, profiles)
 
+def load_farmer_profile(phone):
+    """Load a farmer's profile. Returns dict with defaults if not found."""
+    profiles = _load_json(PROFILES_FILE)
+    return profiles.get(phone, {
+        "name": "Farmer",
+        "location": "Unknown",
+        "past_crop": "Unknown",
+        "current_crop": "Unknown",
+        "soil_type": "Unknown",
+        "terrain": "Unknown"
+    })
 
-def increment_step(call_sid: str) -> int:
-    session = _store.get(call_sid, {})
-    session["step"] = session.get("step", 1) + 1
-    _store[call_sid] = session
-    return session["step"]
+# --- WhatsApp History (Persistent) ---
 
+def get_wa_history(phone):
+    """Retrieve chat history for a WhatsApp user."""
+    histories = _load_json(HISTORY_FILE)
+    return histories.get(phone, [])
 
-# ─── WhatsApp helpers ─────────────────────────────────────────────────────────
-
-def append_wa_history(phone: str, role: str, text: str, max_turns: int = 10) -> None:
-    """Append a message to WhatsApp conversation history."""
-    session = _store.get(phone, {})
-    history = session.get("history", [])
-    history.append({"role": role, "text": text})
-    # Keep last max_turns * 2 messages (each turn = user + model)
-    history = history[-(max_turns * 2):]
-    session["history"] = history
-    _store[phone] = session
-
-
-def get_wa_history(phone: str) -> list:
-    return _store.get(phone, {}).get("history", [])
+def append_wa_history(phone, role, text):
+    """Add a new message to the chat history and persist it."""
+    histories = _load_json(HISTORY_FILE)
+    if phone not in histories:
+        histories[phone] = []
+    
+    histories[phone].append({
+        "role": role,
+        "text": text,
+        "timestamp": time.time()
+    })
+    
+    # Keep only last 20 messages for Gemini context efficiency
+    histories[phone] = histories[phone][-20:]
+    _save_json(HISTORY_FILE, histories)
