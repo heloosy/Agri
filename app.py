@@ -47,6 +47,9 @@ def create_app():
         if not phone_number:
             return jsonify({"success": False, "error": "Phone number is required"}), 400
 
+        if not config.TWILIO_PHONE:
+            return jsonify({"success": False, "error": "System Error: TWILIO_PHONE_NUMBER is not configured in environment variables."}), 500
+
         try:
             client = Client(config.TWILIO_ACCOUNT_SID, config.TWILIO_AUTH_TOKEN)
             call = client.calls.create(
@@ -57,6 +60,23 @@ def create_app():
             return jsonify({"success": True, "call_sid": call.sid})
         except Exception as e:
             return jsonify({"success": False, "error": str(e)}), 500
+
+    @app.route("/web-chat", methods=["POST"])
+    def web_chat():
+        from ai import gemini
+        data = request.json
+        message = data.get("message")
+        history = data.get("history", [])
+        lang = data.get("lang", "EN")
+
+        if not message:
+            return jsonify({"error": "No message provided"}), 400
+
+        try:
+            reply = gemini.chat_reply(lang, message, history)
+            return jsonify({"reply": reply})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
 
     return app
 
