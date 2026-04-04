@@ -3,6 +3,7 @@ AgriSpark 2.0 — IVR Routes
 All Twilio Voice webhook endpoints.
 """
 
+import config
 from flask import Blueprint, request, Response
 from twilio.twiml.voice_response import VoiceResponse, Gather
 
