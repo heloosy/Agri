@@ -129,7 +129,9 @@ def whatsapp_webhook():
             session.append_wa_history(from_number, "user", body)
             session.append_wa_history(from_number, "model", ai_reply)
 
-                # 🏛️ MASTER MEMORY RESTORE: Load data from phone-linked archive
+            # 🏛️ MASTER MEMORY RESTORE: Load data from phone-linked archive
+            # Only trigger plan generation if the AI explicitly requests it
+            if "[GENERATE_PLAN]" in ai_reply:
                 master_profile = session.load_farmer_profile(from_number)
                 
                 # Extract any brand new info from current chat history
