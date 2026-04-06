@@ -63,7 +63,7 @@ def whatsapp_webhook():
             session.update(from_number, lang=lang)
 
         resp = MessagingResponse()
-        msg  = resp.message()
+        # Removed pre-created msg = resp.message() to avoid empty first message
 
         # ─── Image received ───────────────────────────────────────────────────────
         if num_media > 0 and media_url and "image" in media_type:
@@ -84,17 +84,17 @@ def whatsapp_webhook():
 
         # Commands
         if body_lower in ("help", "menu", "ช่วย", "เมนู", "start"):
-            msg.body(MENU_TH if lang == "TH" else MENU_EN)
+            resp.message(MENU_TH if lang == "TH" else MENU_EN)
             return Response(str(resp), mimetype="application/xml")
 
         if body_lower in ("reset", "restart", "เริ่มใหม่"):
             session.delete(from_number)
-            msg.body("✅ Reset. How can I help you today?" if lang == "EN" else "✅ รีเซ็ตแล้ว มีอะไรให้ฉันช่วยไหม?")
+            resp.message("✅ Reset. How can I help you today?" if lang == "EN" else "✅ รีเซ็ตแล้ว มีอะไรให้ฉันช่วยไหม?")
             return Response(str(resp), mimetype="application/xml")
 
         if body_lower in ("stop", "cancel", "exit", "หยุด", "ยกเลิก"):
             session.update(from_number, plan_step=0, awaiting=None)
-            msg.body("✅ Stopped. Ask me anything!" if lang == "EN" else "✅ ยกเลิกแล้ว ถามฉันได้เลย!")
+            resp.message("✅ Stopped. Ask me anything!" if lang == "EN" else "✅ ยกเลิกแล้ว ถามฉันได้เลย!")
             return Response(str(resp), mimetype="application/xml")
 
         # ─── Detail Mode Toggles ──────────────────────────────────────
@@ -118,15 +118,15 @@ def whatsapp_webhook():
             if stored_loc:
                 summary = get_weather_summary(stored_loc)
                 header = f"*🌦 WEATHER: {stored_loc.upper()}*" if lang == "EN" else f"*🌦 พยากรณ์อากาศ: {stored_loc}*"
-                msg.body(f"{header}\n\n\n{summary}")
+                resp.message(f"{header}\n\n\n{summary}")
             else:
                 session.update(from_number, awaiting="weather_location")
                 ask = "📊 *WEATHER DISCOVERY*\n\n\nWhich location do you want weather for?" if lang == "EN" else "📊 *ค้นหาพยากรณ์อากาศ*\n\n\nคุณต้องการพยากรณ์อากาศของที่ไหน?"
-                msg.body(ask)
+                resp.message(ask)
             return Response(str(resp), mimetype="application/xml")
 
         if body_lower in ("price", "ราคา"):
-            msg.body(_market_price_info(lang))
+            resp.message(_market_price_info(lang))
             return Response(str(resp), mimetype="application/xml")
 
         # ─── Awaiting weather location ────────────────────────────────
@@ -134,7 +134,7 @@ def whatsapp_webhook():
             session.update(from_number, location=body, awaiting=None)
             summary = get_weather_summary(body)
             header = f"*🌦 WEATHER: {body.upper()}*" if lang == "EN" else f"*🌦 พยากรณ์อากาศ: {body}*"
-            msg.body(f"{header}\n\n\n{summary}")
+            resp.message(f"{header}\n\n\n{summary}")
             return Response(str(resp), mimetype="application/xml")
 
         # ─── AGENTIC CHATBOT ──────────────────────────────────────────
