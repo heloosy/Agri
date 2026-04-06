@@ -235,12 +235,15 @@ def _format_history(history: list) -> list:
 
 # ─── Image Analysis (WhatsApp) ────────────────────────────────────────────────
 
-def analyze_image(lang: str, image_url: str, twilio_sid: str, twilio_token: str) -> str:
     """Download image from Twilio and analyze with GROQ VISION as primary."""
+    import time
+    start_time = time.time()
     try:
-        response = requests.get(image_url, auth=(twilio_sid, twilio_token), timeout=15)
+        print(f"📸 VISION: Starting download from {image_url[:50]}...")
+        response = requests.get(image_url, auth=(twilio_sid, twilio_token), timeout=10)
         response.raise_for_status()
         img_data = response.content
+        print(f"✅ VISION: Image downloaded ({len(img_data)} bytes) in {time.time() - start_time:.2f}s")
 
         prompt_text = prompts.image_prompt(lang)
         
@@ -249,6 +252,8 @@ def analyze_image(lang: str, image_url: str, twilio_sid: str, twilio_token: str)
             models_to_try = ["llama-3.2-11b-vision-preview", "llama-3.2-90b-vision-preview"]
             for model_id in models_to_try:
                 try:
+                    ai_start = time.time()
+                    print(f"🤖 VISION: Processing with {model_id}...")
                     import base64
                     base64_image = base64.b64encode(img_data).decode('utf-8')
                     completion = groq_client.chat.completions.create(
@@ -269,7 +274,7 @@ def analyze_image(lang: str, image_url: str, twilio_sid: str, twilio_token: str)
                         ],
                         max_tokens=1024,
                     )
-                    print(f"✅ VISION SUCCESS: Processed image using Groq ({model_id})")
+                    print(f"✅ VISION SUCCESS: Processed in {time.time() - ai_start:.2f}s using Groq ({model_id})")
                     return str(completion.choices[0].message.content or "").strip()
                 except Exception as v_err:
                     print(f"⚠️ Groq Vision snag ({model_id}): {v_err}")
