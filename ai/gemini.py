@@ -86,7 +86,8 @@ def generate_farm_plan(lang: str, profile: dict, weather_summary: str = "Not ava
     # Gemini Fallback (Silently)
     try:
         model = _get_working_model()
-        resp  = model.generate_content(prompt, generation_config={"max_output_tokens": 1500, "temperature": 0.3})
+        # Increased to 3000 tokens for "Very Very Detailed" PDF Manuals
+        resp  = model.generate_content(prompt, generation_config={"max_output_tokens": 3000, "temperature": 0.3})
         return resp.text.strip()
     except Exception as e:
         return _handle_err(lang, e)
@@ -163,7 +164,8 @@ def generate_sms_summary(lang: str, profile: dict, key_points: str) -> str:
 
 def chat_reply(lang: str, message: str, history: list, profile: dict = None) -> str:
     """Multi-turn WhatsApp chat using GROQ as primary with optional farmer profile."""
-    system = prompts.chat_system(lang)
+    mode = profile.get("detail_mode", "medium") if profile else "medium"
+    system = prompts.chat_system(lang, mode)
     
     # 🧠 Inject Profile Context for hyper-personalization
     if profile:
@@ -186,7 +188,7 @@ def chat_reply(lang: str, message: str, history: list, profile: dict = None) -> 
         model = _get_working_model(system_instruction=system)
         chat  = model.start_chat(history=_format_history(history))
         resp  = chat.send_message(message)
-        return resp.text.strip()
+        return _smart_truncate(resp.text.strip())
     except Exception as e:
         return _handle_err(lang, e)
 
@@ -405,6 +407,15 @@ def detect_language(text: str) -> str:
         return "TH" if code == "th" else "EN"
     except Exception:
         return "EN"
+
+def _smart_truncate(text: str, limit: int = 1550) -> str:
+    """Ensures WhatsApp messages stay within Twilio's 1600 character limit."""
+    if len(text) <= limit:
+        return text
+    
+    # Truncate and add a guide for the user
+    truncated = text[:limit-50].rsplit(' ', 1)[0]
+    return truncated + "\n\n... [Note: Message truncated for size. See your PDF for the full Expert Manual! 📄]"
 
 def _handle_err(lang: str, e: Exception) -> str:
     """Consistently handle errors and return a string."""
