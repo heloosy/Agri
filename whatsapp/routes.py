@@ -73,7 +73,10 @@ def whatsapp_webhook():
             )
             session.append_wa_history(from_number, "user", "[Image sent]")
             session.append_wa_history(from_number, "model", analysis)
-            msg.body(analysis)
+            
+            # 🧩 Split and send chunks (Fix for Error 21617)
+            for chunk in gemini.split_message(analysis):
+                resp.message(chunk)
             return Response(str(resp), mimetype="application/xml")
 
         # ─── Text commands ────────────────────────────────────────────────────────
@@ -198,7 +201,10 @@ def whatsapp_webhook():
         if not str(ai_reply).strip():
             ai_reply = "I'm thinking... please ask that again!" if lang == "EN" else "กำลังประมวลผล... กรุณาลองใหม่อีกครั้ง"
             
-        msg.body(ai_reply)
+        # 🧩 Split and send chunks (Fix for Error 21617)
+        for chunk in gemini.split_message(ai_reply):
+            resp.message(chunk)
+            
         return Response(str(resp), mimetype="application/xml")
     
     except Exception as fatal_e:
