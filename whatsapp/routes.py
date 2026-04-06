@@ -22,12 +22,12 @@ wa_bp = Blueprint("whatsapp", __name__, url_prefix="")
 MENU_EN = """🌾 *AgriSpark 2.0* — Your AI Farming Advisor
 
 Commands:
-• *plan* — Get a personalised farm plan (PDF)
-• *weather* — 7-day weather for your location
-• *price* — Crop market price guidance
-• *help* — Show this menu
+• *plan* — Personalised farm plan (PDF)
+• *weather* — 7-day weather forecast
+• *price* — Market price guidance
+• */brief*, */medium*, */deep* — Toggle message size
 
-Or just ask me anything about farming! Send a photo of your crop for instant diagnosis. 🌿"""
+Or just ask me anything! Send a photo for instant diagnosis. 🌿"""
 
 MENU_TH = """🌾 *AgriSpark 2.0* — ที่ปรึกษาการเกษตร AI ของคุณ
 
@@ -35,7 +35,7 @@ MENU_TH = """🌾 *AgriSpark 2.0* — ที่ปรึกษาการเก
 • *plan* — รับแผนการเกษตรส่วนตัว (PDF)
 • *weather* — พยากรณ์อากาศ 7 วัน
 • *price* — ข้อมูลราคาพืชผล
-• *help* — แสดงเมนูนี้
+• */brief*, */medium*, */deep* — ปรับระดับความละเอียดของคำตอบ
 
 หรือถามฉันเรื่องการเกษตรได้เลย! ส่งรูปพืชของคุณเพื่อการวินิจฉัยทันที 🌿"""
 
@@ -92,6 +92,22 @@ def whatsapp_webhook():
         if body_lower in ("stop", "cancel", "exit", "หยุด", "ยกเลิก"):
             session.update(from_number, plan_step=0, awaiting=None)
             msg.body("✅ Stopped. Ask me anything!" if lang == "EN" else "✅ ยกเลิกแล้ว ถามฉันได้เลย!")
+            return Response(str(resp), mimetype="application/xml")
+
+        # ─── Detail Mode Toggles ──────────────────────────────────────
+        if body_lower in ("/brief", "/short", "/สั้น"):
+            session.update_detail_mode(from_number, "brief")
+            msg.body("⚡ *MODE: BRIEF*\n\nI will now keep my answers quick and concise." if lang == "EN" else "⚡ *โหมด: กะทัดรัด*\n\nฉันจะตอบคำถามสั้นๆ ได้ใจความ")
+            return Response(str(resp), mimetype="application/xml")
+            
+        if body_lower in ("/medium", "/standard", "/ปกติ"):
+            session.update_detail_mode(from_number, "medium")
+            msg.body("⚖️ *MODE: MEDIUM*\n\nI will now provide balanced, high-yield advice." if lang == "EN" else "⚖️ *โหมด: ปกติ*\n\nฉันจะให้คำแนะนำระดับพรีเมียมตามปกติ")
+            return Response(str(resp), mimetype="application/xml")
+            
+        if body_lower in ("/deep", "/detail", "/detailed", "/ละเอียด"):
+            session.update_detail_mode(from_number, "deep")
+            msg.body("🧪 *MODE: DEEP ANALYSIS*\n\nI will now provide extreme technical depth for every answer." if lang == "EN" else "🧪 *โหมด: ละเอียดเชิงลึก*\n\nฉันจะให้คำแนะนำเชิงเทคนิคขั้นสูงในระดับลึกที่สุด")
             return Response(str(resp), mimetype="application/xml")
 
         if body_lower in ("weather", "อากาศ"):
