@@ -162,7 +162,7 @@ def generate_sms_summary(lang: str, profile: dict, key_points: str) -> str:
 
 # ─── WhatsApp Multi-turn Chat ─────────────────────────────────────────────────
 
-def chat_reply(lang: str, message: str, history: list, profile: dict = None) -> str:
+def chat_reply(lang: str, message: str, history: list, profile: dict = None) -> list:
     """Multi-turn WhatsApp chat using GROQ as primary with optional farmer profile."""
     mode = profile.get("detail_mode", "medium") if profile else "medium"
     system = prompts.chat_system(lang, mode)
@@ -188,7 +188,7 @@ def chat_reply(lang: str, message: str, history: list, profile: dict = None) -> 
         model = _get_working_model(system_instruction=system)
         chat  = model.start_chat(history=_format_history(history))
         resp  = chat.send_message(message)
-        return _smart_truncate(resp.text.strip())
+        return resp.text.strip()
     except Exception as e:
         return _handle_err(lang, e)
 
@@ -408,14 +408,27 @@ def detect_language(text: str) -> str:
     except Exception:
         return "EN"
 
-def _smart_truncate(text: str, limit: int = 1550) -> str:
-    """Ensures WhatsApp messages stay within Twilio's 1600 character limit."""
+def split_message(text: str, limit: int = 1500) -> list:
+    """Splits a long message into multiple chunks of roughly 1500 chars, ideally at paragraph breaks."""
     if len(text) <= limit:
-        return text
+        return [text]
     
-    # Truncate and add a guide for the user
-    truncated = text[:limit-50].rsplit(' ', 1)[0]
-    return truncated + "\n\n... [Note: Message truncated for size. See your PDF for the full Expert Manual! 📄]"
+    chunks = []
+    while text:
+        if len(text) <= limit:
+            chunks.append(text)
+            break
+        
+        # Try to find a good breakpoint (double newline first, then newline, then space)
+        split_at = text.rfind("\n\n", 0, limit)
+        if split_at == -1: split_at = text.rfind("\n", 0, limit)
+        if split_at == -1: split_at = text.rfind(" ", 0, limit)
+        if split_at == -1: split_at = limit
+        
+        chunks.append(text[:split_at].strip())
+        text = text[split_at:].strip()
+    
+    return chunks
 
 def _handle_err(lang: str, e: Exception) -> str:
     """Consistently handle errors and return a string."""
