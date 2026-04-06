@@ -235,6 +235,7 @@ def _format_history(history: list) -> list:
 
 # ─── Image Analysis (WhatsApp) ────────────────────────────────────────────────
 
+def analyze_image(lang: str, image_url: str, twilio_sid: str, twilio_token: str) -> str:
     """Download image from Twilio and analyze with GROQ VISION as primary."""
     import time
     start_time = time.time()
