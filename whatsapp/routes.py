@@ -67,17 +67,23 @@ def whatsapp_webhook():
 
         # ─── Image received ───────────────────────────────────────────────────────
         if num_media > 0 and media_url and "image" in media_type:
-            analysis = gemini.analyze_image(
-                lang, media_url,
-                config.TWILIO_ACCOUNT_SID, config.TWILIO_AUTH_TOKEN
-            )
-            session.append_wa_history(from_number, "user", "[Image sent]")
-            session.append_wa_history(from_number, "model", analysis)
-            
-            # 🧩 Split and send chunks (Fix for Error 21617)
-            for chunk in gemini.split_message(analysis):
-                resp.message(chunk)
-            return Response(str(resp), mimetype="application/xml")
+            try:
+                print(f"📸 WHATSAPP: Processing incoming image from {from_number}...")
+                analysis = gemini.analyze_image(
+                    lang, media_url,
+                    config.TWILIO_ACCOUNT_SID, config.TWILIO_AUTH_TOKEN
+                )
+                session.append_wa_history(from_number, "user", "[Image sent]")
+                session.append_wa_history(from_number, "model", analysis)
+                
+                # 🧩 Split and send chunks (Fix for Error 21617)
+                for chunk in gemini.split_message(analysis):
+                    resp.message(chunk)
+                return Response(str(resp), mimetype="application/xml")
+            except Exception as vision_e:
+                print(f"❌ WHATSAPP VISION ERROR: {vision_e}")
+                resp.message("⚠️ I saw your photo but had trouble analyzing it. Please try again or check my logs!" if lang == "EN" else "⚠️ ฉันเห็นภาพของคุณแล้ว แต่มีปัญหาในการวิเคราะห์ กรุณาลองใหม่อีกครั้ง")
+                return Response(str(resp), mimetype="application/xml")
 
         # ─── Text commands ────────────────────────────────────────────────────────
         body_lower = body.lower().strip()
