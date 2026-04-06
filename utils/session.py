@@ -83,8 +83,20 @@ def load_farmer_profile(phone):
         "past_crop": "Unknown",
         "current_crop": "Unknown",
         "soil_type": "Unknown",
-        "terrain": "Unknown"
+        "terrain": "Unknown",
+        "detail_mode": "medium"  # brief, medium, deep
     })
+
+def update_detail_mode(phone, mode):
+    """Safely update a farmer's preferred detail mode."""
+    profiles = _load_json(PROFILES_FILE)
+    if phone in profiles:
+        profiles[phone]["detail_mode"] = mode
+    else:
+        # Create fresh profile with just the mode
+        profiles[phone] = load_farmer_profile(phone)
+        profiles[phone]["detail_mode"] = mode
+    _save_json(PROFILES_FILE, profiles)
 
 # --- WhatsApp History (Persistent) ---
 
