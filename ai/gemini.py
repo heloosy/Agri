@@ -236,7 +236,7 @@ def _format_history(history: list) -> list:
 # ─── Image Analysis (WhatsApp) ────────────────────────────────────────────────
 
 def analyze_image(lang: str, image_url: str, twilio_sid: str, twilio_token: str) -> str:
-    """Download image from Twilio and analyze with GROQ VISION as primary."""
+    """Download image from Twilio and analyze with vision-capable AI."""
     import time
     start_time = time.time()
     try:
@@ -248,13 +248,28 @@ def analyze_image(lang: str, image_url: str, twilio_sid: str, twilio_token: str)
 
         prompt_text = prompts.image_prompt(lang)
         
-        # 🧪 GROQ VISION (Llama 3.2 Vision)
+        # 🧪 STABLE VISION (Gemini is currently better for agricultural image analysis)
+        try:
+            from PIL import Image
+            from io import BytesIO
+            ai_start = time.time()
+            print("🤖 VISION: Processing with Gemini 1.5 Flash (Industry Standard for Ag)...")
+            image = Image.open(BytesIO(img_data))
+            model = _get_working_model()
+            resp  = model.generate_content([prompt_text, image])
+            print(f"✅ VISION SUCCESS: Processed in {time.time() - ai_start:.2f}s using Gemini")
+            return resp.text.strip()
+        except Exception as g_err:
+             print(f"⚠️ Gemini Vision failure: {g_err}. Attempting Groq fallback...")
+
+        # 🦾 GROQ VISION (Attempting to find any active vision model)
         if groq_client:
-            models_to_try = ["llama-3.2-11b-vision-preview", "llama-3.2-90b-vision-preview"]
+            # We try the most likely new production IDs
+            models_to_try = ["llama-3.2-11b-vision", "llama-3.2-90b-vision"]
             for model_id in models_to_try:
                 try:
                     ai_start = time.time()
-                    print(f"🤖 VISION: Processing with {model_id}...")
+                    print(f"🤖 VISION: Attempting Groq fallback with {model_id}...")
                     import base64
                     base64_image = base64.b64encode(img_data).decode('utf-8')
                     completion = groq_client.chat.completions.create(
